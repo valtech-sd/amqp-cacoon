@@ -8,6 +8,8 @@ defaults: &defaults
   working_directory: ~/repo
   docker:
     - image: circleci/node:12
+      environment:
+          RABBITMQ_CONNECTION_STRING=amqp://guest:guest@localhost:5672
     - image: rabbitmq:3.8
       environment:
         RABBITMQ_DEFAULT_USER=valtech
