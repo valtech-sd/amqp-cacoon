@@ -8,19 +8,32 @@ defaults: &defaults
   working_directory: ~/repo
   docker:
     - image: circleci/node:12
+      environment:
+          RABBITMQ_CONNECTION_STRING=amqp://guest:guest@localhost:5672
+    - image: rabbitmq:3.8
 
 jobs:
   test:
     <<: *defaults
     steps:
       - checkout
-
       - restore_cache:
           keys:
             - v1-dependencies-{{ checksum "package.json" }}
             # fallback to using the latest cache if no exact match is found
             - v1-dependencies-
-
+      
+      # The dockize / Wait method came from circleci support (https://support.circleci.com/hc/en-us/articles/360006773953-Race-Conditions-Wait-For-Database)
+      - run:
+          name: install dockerize
+          command: wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && sudo tar -C /usr/local/bin -xzvf dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && rm dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz
+          environment:
+            DOCKERIZE_VERSION: v0.3.0
+      - run:
+          name: Wait for RabbitMq
+          command: 
+            dockerize -wait tcp://localhost:5672 -timeout 1m
+      
       - run: npm install
       - run:
           name: Run tests
@@ -35,8 +48,6 @@ jobs:
           root: ~/repo
           paths: .
   deploy:
-    branches:
-      only: master
     <<: *defaults
     steps:
       - attach_workspace:
