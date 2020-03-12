@@ -8,6 +8,10 @@ defaults: &defaults
   working_directory: ~/repo
   docker:
     - image: circleci/node:12
+    - image: rabbitmq:3.5.4 
+      environment:
+        RABBITMQ_USERNAME=valtech
+        RABBITMQ_PASSWORD=iscool
 
 jobs:
   test:
