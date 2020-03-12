@@ -8,16 +8,22 @@ defaults: &defaults
   working_directory: ~/repo
   docker:
     - image: circleci/node:12
-    - image: rabbitmq:3.8
-      environment:
-        RABBITMQ_DEFAULT_USER=valtech
-        RABBITMQ_DEFAULT_PASS=iscool
+      #- image: rabbitmq:3.8
+      #  environment:
+      #    RABBITMQ_DEFAULT_USER=valtech
+      #    RABBITMQ_DEFAULT_PASS=iscool
 
 jobs:
   test:
     <<: *defaults
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - v1-dependencies-{{ checksum "package.json" }}
+            # fallback to using the latest cache if no exact match is found
+            - v1-dependencies-
+      
       - run:
           name: install dockerize
           command: wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && sudo tar -C /usr/local/bin -xzvf dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && rm dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz
@@ -25,12 +31,10 @@ jobs:
             DOCKERIZE_VERSION: v0.3.0
       - run:
           name: Wait for RabbitMq
-          command: dockerize -wait tcp://localhost:5672 -timeout 1m
-      - restore_cache:
-          keys:
-            - v1-dependencies-{{ checksum "package.json" }}
-            # fallback to using the latest cache if no exact match is found
-            - v1-dependencies-
+          command: 
+            dockerize -wait tcp://localhost:5672 -timeout 1m
+            sleep 10
+      
       - run: npm install
       - run:
           name: Run tests
