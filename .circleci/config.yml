@@ -18,15 +18,19 @@ jobs:
     <<: *defaults
     steps:
       - checkout
-
+      - run:
+          name: install dockerize
+          command: wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && sudo tar -C /usr/local/bin -xzvf dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && rm dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz
+          environment:
+            DOCKERIZE_VERSION: v0.3.0
+      - run:
+          name: Wait for RabbitMq
+          command: dockerize -wait tcp://localhost:5672 -timeout 1m
       - restore_cache:
           keys:
             - v1-dependencies-{{ checksum "package.json" }}
             # fallback to using the latest cache if no exact match is found
             - v1-dependencies-
-      - run:
-          command: 
-          ./dockerize -wait tcp://localhost:5672 -timeout 60s
       - run: npm install
       - run:
           name: Run tests
