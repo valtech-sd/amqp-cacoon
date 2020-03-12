@@ -36,6 +36,7 @@ logger.level = 'trace';
 describe('Amqp Cacoon', () => {
   // Just make sure it initializes
   it('Constructor: Initializes', () => {
+      console.log(process.env);
     new AmqpCacoon({
       protocol: config.messageBus.protocol,
       username: config.messageBus.username,
