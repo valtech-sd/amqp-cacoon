@@ -7,11 +7,11 @@ version: 2
 defaults: &defaults
   working_directory: ~/repo
   docker:
-    - image: circleci/node:12
-    - image: rabbitmq:3.5.4 
+    - image: rabbitmq:3.8
       environment:
-        RABBITMQ_USERNAME=valtech
-        RABBITMQ_PASSWORD=iscool
+        RABBITMQ_DEFAULT_USER=valtech
+        RABBITMQ_DEFAULT_PASS=iscool
+    - image: circleci/node:12
 
 jobs:
   test:
@@ -43,6 +43,8 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/repo
+      - branches:
+          only: master
       - run: npm run build
       - run:
           name: Release

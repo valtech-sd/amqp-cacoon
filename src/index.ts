@@ -5,11 +5,12 @@ import { Logger } from 'log4js';
 export { ConsumeMessage, Channel };
 
 export interface IAmqpCacoonConfig {
-  protocol: string;
-  username: string;
-  password: string;
-  host: string;
+  protocol?: string;
+  username?: string;
+  password?: string;
+  host?: string;
   port?: number;
+  connectionString?: string;
   amqp_opts: object;
   providers: {
     logger?: Logger;
@@ -43,7 +44,7 @@ class AmqpCacoon {
   constructor(config: IAmqpCacoonConfig) {
     this.pubChannel = null;
     this.subChannel = null;
-    this.fullHostName = this.getFullHostName(config);
+    this.fullHostName = config.connectionString || this.getFullHostName(config);
     this.amqp_opts = config.amqp_opts;
     this.logger = config.providers.logger;
   }

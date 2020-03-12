@@ -3,21 +3,30 @@ import _ from 'lodash';
 import 'mocha';
 import AmqpCacoon, { Channel, ConsumeMessage } from '../../src';
 
-const config = {
+let defaultMessageBusConfig = {
+  // Protocol should be "amqp" or "amqps"
+  protocol: 'amqp',
+  // Username + Password on the RabbitMQ host
+  username: 'valtech',
+  password: 'iscool',
+  // Host
+  host: 'localhost',
+  // Port
+  port: 5672,
+};
+const config: any = {
   messageBus: {
-    // Protocol should be "amqp" or "amqps"
-    protocol: 'amqp',
-    // Username + Password on the RabbitMQ host
-    username: 'valtech',
-    password: 'iscool',
-    // Host
-    host: 'localhost',
-    // Port
-    port: 5672,
     // Queue setup
     testQueue: 'test-queue',
   },
 };
+
+if (process.env.RABBITMQ_CONNECTION_STRING) {
+  config.messageBus.connectionString = process.env.RABBITMQ_CONNECTION_STRING;
+} else {
+  _.extend(config.messageBus, defaultMessageBusConfig);
+}
+
 import log4js from 'log4js';
 
 let logger = log4js.getLogger();
