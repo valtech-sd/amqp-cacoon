@@ -48,14 +48,10 @@ jobs:
           root: ~/repo
           paths: .
   deploy:
-    branches:
-      only: master
     <<: *defaults
     steps:
       - attach_workspace:
           at: ~/repo
-      - branches:
-          only: master
       - run: npm run build
       - run:
           name: Release
