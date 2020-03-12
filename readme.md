@@ -2,7 +2,7 @@
 
 ## Caution
 
-WIP: Documetation is very much a work in progress. As of right now, I make no garentees that the api will not change.
+WIP: Documetation is very much a work in progress.
 
 ## Overview
 
