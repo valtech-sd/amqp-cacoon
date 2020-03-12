@@ -32,7 +32,6 @@ jobs:
           name: Wait for RabbitMq
           command: 
             dockerize -wait tcp://localhost:5672 -timeout 1m
-            sleep 10
       
       - run: npm install
       - run:
