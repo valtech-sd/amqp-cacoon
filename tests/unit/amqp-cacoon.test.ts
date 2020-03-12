@@ -36,13 +36,13 @@ logger.level = 'trace';
 describe('Amqp Cacoon', () => {
   // Just make sure it initializes
   it('Constructor: Initializes', () => {
-      console.log(process.env);
     new AmqpCacoon({
       protocol: config.messageBus.protocol,
       username: config.messageBus.username,
       password: config.messageBus.password,
       host: config.messageBus.host,
       port: config.messageBus.port,
+      connectionString: config.messageBus.connectionString,
       amqp_opts: {},
       providers: {
         logger: logger,
@@ -59,6 +59,7 @@ describe('Amqp Cacoon', () => {
         password: config.messageBus.password,
         host: config.messageBus.host,
         port: config.messageBus.port,
+        connectionString: config.messageBus.connectionString,
         amqp_opts: {},
         providers: {
           logger: logger,
@@ -84,6 +85,7 @@ describe('Amqp Cacoon', () => {
         password: config.messageBus.password,
         host: config.messageBus.host,
         port: config.messageBus.port,
+        connectionString: config.messageBus.connectionString,
         amqp_opts: {},
         providers: {
           logger: logger,
@@ -109,6 +111,7 @@ describe('Amqp Cacoon', () => {
         password: config.messageBus.password,
         host: config.messageBus.host,
         port: config.messageBus.port,
+        connectionString: config.messageBus.connectionString,
         amqp_opts: {},
         providers: {
           logger: logger,
