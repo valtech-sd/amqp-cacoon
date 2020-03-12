@@ -4,6 +4,9 @@
   "description": "AmqpCacoon is an abstraction around amqplib that provides a simple interface with flow control included out of the box",
   "main": "build/index.js",
   "types": "build/index.d.ts",
+  "files": [
+    "build/**/*"
+  ],
   "scripts": {
     "build": "rimraf ./build && tsc",
     "test": "mocha -r ts-node/register ./tests/**/*.test.ts"
@@ -32,7 +35,7 @@
     "sinon": "^8.1.0",
     "ts-mock-imports": "^1.2.6"
   },
-  "files": [
-    "build/**/*"
-  ]
+  "publishConfig": {
+    "access": "public"
+  }
 }
