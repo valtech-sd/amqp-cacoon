@@ -110,7 +110,8 @@ class AmqpCacoon {
       // Open a channel
       this.subChannel = await this.connection.createChannel();
     } catch (e) {
-      if (this.logger) this.logger.error('AMQPCacoon.connect: Error: ', e);
+      if (this.logger)
+        this.logger.error('AMQPCacoon.getConsumerChannel: Error: ', e);
       throw e;
     }
     // Return the channel
@@ -140,7 +141,9 @@ class AmqpCacoon {
         await handler(channel, msg);
       });
     } catch (e) {
-      if (this.logger) this.logger.error('AMQPCacoon.connect: Error: ', e);
+      if (this.logger)
+        this.logger.error('AMQPCacoon.registerConsumer: Error: ', e);
+      throw e;
     }
   }
 
@@ -160,47 +163,52 @@ class AmqpCacoon {
     msgBuffer: any,
     options?: Options.Publish
   ) {
-    const channel = await this.getPublishChannel(); // Sets up the publisher channel
+    try {
+      const channel = await this.getPublishChannel(); // Sets up the publisher channel
 
-    // We add a promise so that we can control flow
-    // Perform the channel operation and hold the result which will be true/false per AMQP Lib docs
-    const channelReady = channel.publish(
-      exchange,
-      routingKey,
-      msgBuffer,
-      options
-    );
-    if (this.logger) {
-      this.logger.trace(`AMQPCacoon.publish result: ${channelReady}`);
-    }
-    // Check the result. channelReady == true means we can keep sending, so we resolve this promise
-    if (channelReady) {
-      return;
-    } else {
-      // Otherwise, channelReady == false so we have to wait for the pubChannel's on 'drain'
+      // We add a promise so that we can control flow
+      // Perform the channel operation and hold the result which will be true/false per AMQP Lib docs
+      const channelReady = channel.publish(
+        exchange,
+        routingKey,
+        msgBuffer,
+        options
+      );
       if (this.logger) {
-        this.logger.info(
-          'AMQPCacoon.publish buffer full. Waiting for "drain"...'
-        );
+        this.logger.trace(`AMQPCacoon.publish result: ${channelReady}`);
       }
-
-      // Set a handler for the drain event
-      await new Promise(resolve => {
-        if (!this.pubChannel) {
-          // This shouldn't ever happen
-          throw new Error(
-            `AMQPCacoon.public. Publisher channel has not been set up`
+      // Check the result. channelReady == true means we can keep sending, so we resolve this promise
+      if (channelReady) {
+        return;
+      } else {
+        // Otherwise, channelReady == false so we have to wait for the pubChannel's on 'drain'
+        if (this.logger) {
+          this.logger.info(
+            'AMQPCacoon.publish buffer full. Waiting for "drain"...'
           );
         }
-        // TODO add timeout in case drain does not occur after x amount of time. Make timeout configurable
-        channel.once('drain', () => {
-          if (this.logger) {
-            this.logger.trace('AMQPCacoon.publish "drain" received.');
+
+        // Set a handler for the drain event
+        await new Promise((resolve) => {
+          if (!this.pubChannel) {
+            // This shouldn't ever happen
+            throw new Error(
+              `AMQPCacoon.public. Publisher channel has not been set up`
+            );
           }
-          // resolve since we now can proceed
-          resolve();
+          // TODO add timeout in case drain does not occur after x amount of time. Make timeout configurable
+          channel.once('drain', () => {
+            if (this.logger) {
+              this.logger.trace('AMQPCacoon.publish "drain" received.');
+            }
+            // resolve since we now can proceed
+            resolve();
+          });
         });
-      });
+      }
+    } catch (e) {
+      if (this.logger) this.logger.error('AMQPCacoon.publish: Error: ', e);
+      throw e;
     }
   }
 
