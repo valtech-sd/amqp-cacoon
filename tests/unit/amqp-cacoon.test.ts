@@ -2,7 +2,11 @@ import { expect } from 'chai';
 import _ from 'lodash';
 import 'mocha';
 import simple from 'simple-mock';
-import AmqpCacoon, { Channel, ConsumeMessage } from '../../src';
+import AmqpCacoon, {
+  IAmqpCacoonConfig,
+  Channel,
+  ConsumeMessage,
+} from '../../src';
 
 let defaultMessageBusConfig = {
   // Protocol should be "amqp" or "amqps"
@@ -35,40 +39,32 @@ logger = log4js.getLogger('synchronous');
 logger.level = 'trace';
 
 describe('Amqp Cacoon', () => {
+  let amqpCacoonConfig: IAmqpCacoonConfig = {
+    protocol: config.messageBus.protocol,
+    username: config.messageBus.username,
+    password: config.messageBus.password,
+    host: config.messageBus.host,
+    port: config.messageBus.port,
+    connectionString: config.messageBus.connectionString,
+    amqp_opts: {},
+    providers: {
+      logger: logger,
+    },
+    maxWaitForDrainMs: 50,
+  };
+
   afterEach(() => {
     simple.restore();
   });
   // Just make sure it initializes
   it('Constructor: Initializes', () => {
-    new AmqpCacoon({
-      protocol: config.messageBus.protocol,
-      username: config.messageBus.username,
-      password: config.messageBus.password,
-      host: config.messageBus.host,
-      port: config.messageBus.port,
-      connectionString: config.messageBus.connectionString,
-      amqp_opts: {},
-      providers: {
-        logger: logger,
-      },
-    });
+    new AmqpCacoon(amqpCacoonConfig);
   });
 
   it('getConsumerChannel() - channel is returned', async () => {
     let amqpCacoon: any;
     try {
-      amqpCacoon = new AmqpCacoon({
-        protocol: config.messageBus.protocol,
-        username: config.messageBus.username,
-        password: config.messageBus.password,
-        host: config.messageBus.host,
-        port: config.messageBus.port,
-        connectionString: config.messageBus.connectionString,
-        amqp_opts: {},
-        providers: {
-          logger: logger,
-        },
-      });
+      amqpCacoon = new AmqpCacoon(amqpCacoonConfig);
       let channel: Channel | null = await amqpCacoon.getConsumerChannel();
       expect(channel, 'Is undefined').to.not.be.undefined;
       expect(channel, 'Is null').to.not.be.null;
@@ -83,18 +79,7 @@ describe('Amqp Cacoon', () => {
   it('getPublishChannel() - channel is returned', async () => {
     let amqpCacoon: any;
     try {
-      amqpCacoon = new AmqpCacoon({
-        protocol: config.messageBus.protocol,
-        username: config.messageBus.username,
-        password: config.messageBus.password,
-        host: config.messageBus.host,
-        port: config.messageBus.port,
-        connectionString: config.messageBus.connectionString,
-        amqp_opts: {},
-        providers: {
-          logger: logger,
-        },
-      });
+      amqpCacoon = new AmqpCacoon(amqpCacoonConfig);
       let channel: Channel | null = await amqpCacoon.getPublishChannel();
       expect(channel, 'Is undefined').to.not.be.undefined;
       expect(channel, 'Is null').to.not.be.null;
@@ -109,18 +94,7 @@ describe('Amqp Cacoon', () => {
   it('publish/consume - Published message is received correctly', async () => {
     let amqpCacoon: AmqpCacoon | null = null;
     try {
-      amqpCacoon = new AmqpCacoon({
-        protocol: config.messageBus.protocol,
-        username: config.messageBus.username,
-        password: config.messageBus.password,
-        host: config.messageBus.host,
-        port: config.messageBus.port,
-        connectionString: config.messageBus.connectionString,
-        amqp_opts: {},
-        providers: {
-          logger: logger,
-        },
-      });
+      amqpCacoon = new AmqpCacoon(amqpCacoonConfig);
       let channel: Channel | null = await amqpCacoon.getPublishChannel();
       if (channel) await channel.assertQueue(config.messageBus.testQueue);
 
@@ -166,22 +140,10 @@ describe('Amqp Cacoon', () => {
     }
   });
 
-  it('publish - Drain needed path', async () => {
+  it('publish - Drain timeout path', async () => {
     let amqpCacoon: AmqpCacoon | null = null;
     try {
-      amqpCacoon = new AmqpCacoon({
-        protocol: config.messageBus.protocol,
-        username: config.messageBus.username,
-        password: config.messageBus.password,
-        host: config.messageBus.host,
-        port: config.messageBus.port,
-        connectionString: config.messageBus.connectionString,
-        amqp_opts: {},
-        providers: {
-          logger: logger,
-        },
-        maxWaitForDrainMs: 50,
-      });
+      amqpCacoon = new AmqpCacoon(amqpCacoonConfig);
 
       let channelStubs = {
         publish: simple.stub().returnWith(false),
@@ -189,7 +151,6 @@ describe('Amqp Cacoon', () => {
       };
       let override: any = amqpCacoon;
       override.pubChannel = channelStubs;
-      //simple.mock(amqpCacoon, 'getPublishChannel').resolveWith(channelStubs);
 
       // Test drain with timeout
       try {
@@ -218,10 +179,6 @@ describe('Amqp Cacoon', () => {
 
       expect(channelStubs.once.called, 'channel.once was not called').to.be
         .true;
-
-      //channelStubs.once.lastCall.args[1]();
-
-      //await pubPromise;
     } catch (e) {
       throw e;
     }

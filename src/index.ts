@@ -227,8 +227,10 @@ class AmqpCacoon {
             }
             // resolve since we now can proceed
             if (timeoutHandler) {
-              clearTimeout(timeoutHandler);
-              timeoutHandler = null;
+              if (this.maxWaitForDrainMs !== 0) {
+                clearTimeout(timeoutHandler);
+                timeoutHandler = null;
+              }
               resolve();
             }
           });
