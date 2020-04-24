@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import _ from 'lodash';
 import 'mocha';
+import simple from 'simple-mock';
 import AmqpCacoon, { Channel, ConsumeMessage } from '../../src';
 
 let defaultMessageBusConfig = {
@@ -34,6 +35,9 @@ logger = log4js.getLogger('synchronous');
 logger.level = 'trace';
 
 describe('Amqp Cacoon', () => {
+  afterEach(() => {
+    simple.restore();
+  });
   // Just make sure it initializes
   it('Constructor: Initializes', () => {
     new AmqpCacoon({
@@ -158,6 +162,67 @@ describe('Amqp Cacoon', () => {
       if (amqpCacoon) amqpCacoon.close();
     } catch (e) {
       if (amqpCacoon) amqpCacoon.close();
+      throw e;
+    }
+  });
+
+  it('publish - Drain needed path', async () => {
+    let amqpCacoon: AmqpCacoon | null = null;
+    try {
+      amqpCacoon = new AmqpCacoon({
+        protocol: config.messageBus.protocol,
+        username: config.messageBus.username,
+        password: config.messageBus.password,
+        host: config.messageBus.host,
+        port: config.messageBus.port,
+        connectionString: config.messageBus.connectionString,
+        amqp_opts: {},
+        providers: {
+          logger: logger,
+        },
+        maxWaitForDrainMs: 50,
+      });
+
+      let channelStubs = {
+        publish: simple.stub().returnWith(false),
+        once: simple.stub(),
+      };
+      let override: any = amqpCacoon;
+      override.pubChannel = channelStubs;
+      //simple.mock(amqpCacoon, 'getPublishChannel').resolveWith(channelStubs);
+
+      // Test drain with timeout
+      try {
+        await amqpCacoon.publish(
+          '',
+          config.messageBus.testQueue,
+          Buffer.from('TestString')
+        );
+        throw new Error(
+          'Failed! amqpCacoon.publish should have been rejected!'
+        );
+      } catch (e) {
+        expect(e.message).to.include('Timeout');
+      }
+
+      // Test drain without timeout
+      channelStubs.once.callbackWith(null);
+      await amqpCacoon.publish(
+        '',
+        config.messageBus.testQueue,
+        Buffer.from('TestString')
+      );
+
+      expect(channelStubs.publish.called, 'channel.publish was not called').to
+        .be.true;
+
+      expect(channelStubs.once.called, 'channel.once was not called').to.be
+        .true;
+
+      //channelStubs.once.lastCall.args[1]();
+
+      //await pubPromise;
+    } catch (e) {
       throw e;
     }
   });

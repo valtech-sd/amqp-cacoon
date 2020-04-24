@@ -15,6 +15,7 @@ export interface IAmqpCacoonConfig {
   providers: {
     logger?: Logger;
   };
+  maxWaitForDrainMs?: number; // How long to wait for a drain event if RabbitMq fills up. Zero to wait forever. Defaults to 60000 ms (1 min)
 }
 /**
  * AmqpCacoon
@@ -32,6 +33,7 @@ class AmqpCacoon {
   private fullHostName: string;
   private amqp_opts: object;
   private logger?: Logger;
+  private maxWaitForDrainMs: number;
 
   /**
    * constructor
@@ -47,6 +49,7 @@ class AmqpCacoon {
     this.fullHostName = config.connectionString || this.getFullHostName(config);
     this.amqp_opts = config.amqp_opts;
     this.logger = config.providers.logger;
+    this.maxWaitForDrainMs = config.maxWaitForDrainMs || 60000; // Default to 1 min
   }
 
   /**
@@ -189,20 +192,45 @@ class AmqpCacoon {
         }
 
         // Set a handler for the drain event
-        await new Promise((resolve) => {
+        await new Promise((resolve, reject) => {
           if (!this.pubChannel) {
             // This shouldn't ever happen
             throw new Error(
-              `AMQPCacoon.public. Publisher channel has not been set up`
+              `AMQPCacoon.public: Publisher channel has not been set up`
             );
           }
-          // TODO add timeout in case drain does not occur after x amount of time. Make timeout configurable
+          // Set a timeout in case Drain is slow, at least we log it
+          let timeoutHandler: any =
+            this.maxWaitForDrainMs !== 0
+              ? setTimeout(() => {
+                  if (this.logger) {
+                    this.logger.info(
+                      `AMQPCacoon.publish: After a full buffer, slow buffer: \nmsg: ${msgBuffer.toString(
+                        'utf8'
+                      )}`
+                    );
+                  }
+                  if (timeoutHandler) {
+                    timeoutHandler = null;
+                    reject(
+                      new Error(
+                        `AMQPCacoon.public: Timeout after ${this.maxWaitForDrainMs}ms`
+                      )
+                    );
+                  }
+                }, this.maxWaitForDrainMs)
+              : true;
+
           channel.once('drain', () => {
             if (this.logger) {
-              this.logger.trace('AMQPCacoon.publish "drain" received.');
+              this.logger.trace('AMQPCacoon.publish: "drain" received.');
             }
             // resolve since we now can proceed
-            resolve();
+            if (timeoutHandler) {
+              clearTimeout(timeoutHandler);
+              timeoutHandler = null;
+              resolve();
+            }
           });
         });
       }

@@ -1,5 +1,9 @@
 # AmqpCacoon
 
+<p align="center">
+  <img height='300' src="./assets/amqp_cacoon_2.png">
+</p>
+
 ## Caution
 
 WIP: Documetation is very much a work in progress.
