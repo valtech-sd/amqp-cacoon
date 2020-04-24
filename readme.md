@@ -4,10 +4,6 @@
   <img height='300' src="./assets/amqp_cacoon_2.png">
 </p>
 
-## Caution
-
-WIP: Documetation is very much a work in progress.
-
 ## Overview
 
 This is a basic library to provide amqp support. This library is a wrapper around amqplib and makes amqp easier to work with.
@@ -16,7 +12,7 @@ This is a basic library to provide amqp support. This library is a wrapper aroun
 
 - Simple interace around amqplib
 - Publish flow control included out of the box (Wait for drain event if we can't publish)
-- TODO timeout if drain event does not occure after some amount of time
+- timeout if drain event does not occure after some amount of time when channel is not ready to receive a publish
 
 ## Requirements to tests
 
