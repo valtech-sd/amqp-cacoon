@@ -1,8 +1,35 @@
 import amqp from 'amqplib';
 import { ConsumeMessage, Connection, Channel, Options } from 'amqplib';
 import { Logger } from 'log4js';
+import MessageBatchingManager from './helpers/message_batching_manager';
 
 export { ConsumeMessage, Channel };
+
+const DEFAULT_MAX_FILES_SIZE_BYTES = 1024 * 1024 * 2; // 2 MB
+const DEFAULT_MAX_BUFFER_TIME_MS = 60 * 1000; // 60 seconds
+
+// Used as return value in handler for registerConsumerBatch function
+export interface ConsumeBatchMessages {
+  batchingOptions: {
+    maxSizeBytes?: number;
+    maxTimeMs?: number;
+  };
+  totalSizeInBytes: number;
+  messages: Array<ConsumeMessage>;
+  ackAll: (allUpTo?: boolean) => {};
+  nackAll: (allUpTo?: boolean, requeue?: boolean) => {};
+}
+
+// Used for registerConsumer function
+export interface ConsumerOptions extends Options.Consume {}
+
+// Used for registerConsumerBatch function
+export interface ConsumerBatchOptions extends Options.Consume {
+  batching?: {
+    maxSizeBytes?: number;
+    maxTimeMs?: number;
+  };
+}
 
 export interface IAmqpCacoonConfig {
   protocol?: string;
@@ -122,32 +149,115 @@ class AmqpCacoon {
   }
 
   /**
-   * registerConsumer
-   * After registering a handler on a queue that handler will
-   * get called for messages received on the specified queueu
+   * registerConsumerPrivate
+   * registerConsumer and registerConsumerBatch use this function to register consumers
    *
    * @param queue - Name of the queue
-   * @param handler: (msg: object) => Promise<any> - A handler that receives the message
-   * @return channel
+   * @param handler: (channel: Channel, msg: object) => Promise<any> - A handler that receives the message
+   * @param options : ConsumerOptions - Used to pass in consumer options
+   * @return Promise<void>
    **/
-  async registerConsumer(
+  private async registerConsumerPrivate(
     queue: string,
-    handler: (channel: Channel, msg: ConsumeMessage) => Promise<void>
+    consumerHandler: (
+      channel: Channel,
+      msg: ConsumeMessage | null
+    ) => Promise<void>,
+    options?: ConsumerOptions
   ) {
     try {
       // Get consumer channel
       const channel = await this.getConsumerChannel();
 
       // Register a consume on the current channel
-      await channel.consume(queue, async (msg: ConsumeMessage | null) => {
-        if (!msg) return; // We know this will always be true but typescript requires this
-        await handler(channel, msg);
-      });
+      await channel.consume(
+        queue,
+        consumerHandler.bind(this, channel),
+        options
+      );
     } catch (e) {
       if (this.logger)
-        this.logger.error('AMQPCacoon.registerConsumer: Error: ', e);
+        this.logger.error('AMQPCacoon.registerConsumerPrivate: Error: ', e);
       throw e;
     }
+  }
+
+  /**
+   * registerConsumer
+   * After registering a handler on a queue that handler will
+   * get called for messages received on the specified queue
+   *
+   * @param queue - Name of the queue
+   * @param handler: (channel: Channel, msg: object) => Promise<any> - A handler that receives the message
+   * @param options : ConsumerOptions - Used to pass in consumer options
+   * @return Promise<void>
+   **/
+  async registerConsumer(
+    queue: string,
+    handler: (channel: Channel, msg: ConsumeMessage) => Promise<void>,
+    options?: ConsumerOptions
+  ) {
+    return this.registerConsumerPrivate(
+      queue,
+      async (channel: Channel, msg: ConsumeMessage | null) => {
+        if (!msg) return; // We know this will always be true but typescript requires this
+        await handler(channel, msg);
+      },
+      options
+    );
+  }
+
+  /**
+   * registerConsumerBatch
+   * This is very similar to registerConsumer except this enables message batching.
+   * The following options are configurable
+   * 1. batching.maxTimeMs - Max time in milliseconds before we return the batch
+   * 2. batching.maxSizeBytes - Max size in bytes before we return
+   *
+   * @param queue - Name of the queue
+   * @param handler: (channel: Channel, msg: object) => Promise<any> - A handler that receives the message
+   * @param options : ConsumerOptions - Used to pass in consumer options
+   * @return Promise<void>
+   **/
+  async registerConsumerBatch(
+    queue: string,
+    handler: (channel: Channel, msg: ConsumeBatchMessages) => Promise<void>,
+    options?: ConsumerBatchOptions
+  ) {
+    // Set some default options
+    if (!options?.batching) {
+      options = Object.assign(
+        {},
+        {
+          batching: {
+            maxTimeMs: DEFAULT_MAX_BUFFER_TIME_MS,
+            maxSizeBytes: DEFAULT_MAX_FILES_SIZE_BYTES,
+          },
+        },
+        options
+      );
+    }
+
+    // Initialize Message batching manager
+    let messageBatchingHandler: MessageBatchingManager;
+    messageBatchingHandler = new MessageBatchingManager({
+      providers: { logger: this.logger },
+      maxSizeBytes: options?.batching?.maxSizeBytes,
+      maxTimeMs: options?.batching?.maxTimeMs,
+      skipNackOnFail: options?.noAck,
+    });
+
+    // Register consumer
+    return this.registerConsumerPrivate(
+      queue,
+      async (channel: Channel, msg: ConsumeMessage | null) => {
+        if (!msg) return; // We know this will always be true but typescript requires this
+
+        // Handle message batching
+        messageBatchingHandler.handleMessageBuffering(channel, msg, handler);
+      },
+      options
+    );
   }
 
   /**
