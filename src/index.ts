@@ -16,8 +16,8 @@ export interface ConsumeBatchMessages {
   };
   totalSizeInBytes: number;
   messages: Array<ConsumeMessage>;
-  ackAll: (allUpTo?: boolean) => {};
-  nackAll: (allUpTo?: boolean, requeue?: boolean) => {};
+  ackAll: (allUpTo?: boolean) => void;
+  nackAll: (allUpTo?: boolean, requeue?: boolean) => void;
 }
 
 // Used for registerConsumer function

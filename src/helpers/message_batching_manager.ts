@@ -15,8 +15,10 @@ export default class MessageBatchingManager {
   private bufferSize: number = 1;
   private timerHandle?: NodeJS.Timeout;
   private amqpChannel?: Channel;
+  private logger?: Logger;
+  constructor(private config: IMessageBatchingManagerConfig) {
+    this.logger = config.providers.logger;
 
-  constructor(public config: IMessageBatchingManagerConfig) {
     this.resetMessages();
   }
 
@@ -88,9 +90,15 @@ export default class MessageBatchingManager {
     messageList: Array<ConsumeMessage>,
     allUpTo?: boolean
   ) {
+    if (this.logger) {
+      this.logger.trace(`MessageBatchingManager.ackMessageList: Start`);
+    }
     // 1. Loop over all messages in list and ack them
     for (let msg of messageList) {
       channel.ack(msg, allUpTo);
+    }
+    if (this.logger) {
+      this.logger.trace(`MessageBatchingManager.ackMessageList: End`);
     }
   }
 
@@ -109,9 +117,15 @@ export default class MessageBatchingManager {
     allUpTo?: boolean,
     requeue?: boolean
   ) {
+    if (this.logger) {
+      this.logger.trace(`MessageBatchingManager.nackMessageList: Start`);
+    }
     // 1. Loop over all messages in list and nack them
     for (let msg of messageList) {
       channel.nack(msg, allUpTo, requeue);
+    }
+    if (this.logger) {
+      this.logger.trace(`MessageBatchingManager.nackMessageList: End`);
     }
   }
 
@@ -145,15 +159,9 @@ export default class MessageBatchingManager {
         totalSizeInBytes: bufferSize,
         messages: unackedMessageList,
         ackAll: (allUpTo?: boolean) =>
-          this.ackMessageList.bind(this, channel, unackedMessageList, allUpTo),
+          this.ackMessageList(channel, unackedMessageList, allUpTo),
         nackAll: (allUpTo?: boolean, requeue?: boolean) =>
-          this.nackMessageList.bind(
-            this,
-            channel,
-            unackedMessageList,
-            allUpTo,
-            requeue
-          ),
+          this.nackMessageList(channel, unackedMessageList, allUpTo, requeue),
       };
       await handler(channel, messages);
 
