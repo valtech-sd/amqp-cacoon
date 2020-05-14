@@ -12,7 +12,8 @@ This is a basic library to provide amqp support. This library is a wrapper aroun
 
 - Simple interace around amqplib
 - Publish flow control included out of the box (Wait for drain event if we can't publish)
-- timeout if drain event does not occure after some amount of time when channel is not ready to receive a publish
+- timeout if drain event does not occurs after some amount of time when channel is not ready to receive a publish
+- Consume single or batch of messages
 
 ## Requirements to tests
 
