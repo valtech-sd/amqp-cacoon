@@ -80,23 +80,17 @@ export default class MessageBatchingManager {
    * ackMessageList
    * Ack all messages in list
    * Do this by...
-   * 1. Loop over all messages in list and ack them
+   * 1. Ack the last message using allUpTo argumetn to specify that all messages up to the last should be nacked
    *
    * @param channel: Channel - Channel
    * @param messageList: Array<ConsumeMessage> - Messages to be acked
    */
-  ackMessageList(
-    channel: Channel,
-    messageList: Array<ConsumeMessage>,
-    allUpTo?: boolean
-  ) {
+  ackMessageList(channel: Channel, messageList: Array<ConsumeMessage>) {
     if (this.logger) {
       this.logger.trace(`MessageBatchingManager.ackMessageList: Start`);
     }
-    // 1. Loop over all messages in list and ack them
-    for (let msg of messageList) {
-      channel.ack(msg, allUpTo);
-    }
+    // 1. Ack the last message using allUpTo argumetn to specify that all messages up to the last should be nacked
+    channel.ack(messageList[messageList.length - 1], true);
     if (this.logger) {
       this.logger.trace(`MessageBatchingManager.ackMessageList: End`);
     }
@@ -106,7 +100,7 @@ export default class MessageBatchingManager {
    * nackMessageList
    * Nack all messages in list
    * Do this by...
-   * 1. Loop over all messages in list and nack them
+   * 1. Nack the last message using the allUpTo argument to specify that all messages up to the last should be nacked
    *
    * @param channel: Channel - Channel
    * @param messageList: Array<ConsumeMessage> - Messages to be nacked
@@ -114,16 +108,13 @@ export default class MessageBatchingManager {
   nackMessageList(
     channel: Channel,
     messageList: Array<ConsumeMessage>,
-    allUpTo?: boolean,
     requeue?: boolean
   ) {
     if (this.logger) {
       this.logger.trace(`MessageBatchingManager.nackMessageList: Start`);
     }
-    // 1. Loop over all messages in list and nack them
-    for (let msg of messageList) {
-      channel.nack(msg, allUpTo, requeue);
-    }
+    // 1. Nack the last message using the allUpTo argument to specify that all messages up to the last should be nacked
+    channel.nack(messageList[messageList.length - 1], true, requeue);
     if (this.logger) {
       this.logger.trace(`MessageBatchingManager.nackMessageList: End`);
     }
@@ -158,10 +149,9 @@ export default class MessageBatchingManager {
         },
         totalSizeInBytes: bufferSize,
         messages: unackedMessageList,
-        ackAll: (allUpTo?: boolean) =>
-          this.ackMessageList(channel, unackedMessageList, allUpTo),
-        nackAll: (allUpTo?: boolean, requeue?: boolean) =>
-          this.nackMessageList(channel, unackedMessageList, allUpTo, requeue),
+        ackAll: () => this.ackMessageList(channel, unackedMessageList),
+        nackAll: (requeue?: boolean) =>
+          this.nackMessageList(channel, unackedMessageList, requeue),
       };
       await handler(channel, messages);
 
