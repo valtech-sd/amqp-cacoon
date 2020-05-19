@@ -90,7 +90,10 @@ export default class MessageBatchingManager {
       this.logger.trace(`MessageBatchingManager.ackMessageList: Start`);
     }
     // 1. Ack the last message using allUpTo argumetn to specify that all messages up to the last should be nacked
-    channel.ack(messageList[messageList.length - 1], true);
+    //channel.ack(messageList[messageList.length - 1], true);
+    for (let msg of messageList) {
+      channel.ack(msg);
+    }
     if (this.logger) {
       this.logger.trace(`MessageBatchingManager.ackMessageList: End`);
     }
@@ -114,7 +117,10 @@ export default class MessageBatchingManager {
       this.logger.trace(`MessageBatchingManager.nackMessageList: Start`);
     }
     // 1. Nack the last message using the allUpTo argument to specify that all messages up to the last should be nacked
-    channel.nack(messageList[messageList.length - 1], true, requeue);
+    //channel.nack(messageList[messageList.length - 1], true, requeue);
+    for (let msg of messageList) {
+      channel.nack(msg, requeue);
+    }
     if (this.logger) {
       this.logger.trace(`MessageBatchingManager.nackMessageList: End`);
     }
