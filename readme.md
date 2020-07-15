@@ -4,6 +4,11 @@
   <img height='300' src="./assets/amqp_cacoon_2.png">
 </p>
 
+[![CircleCI](https://circleci.com/gh/valtech-sd/amqp-cacoon.svg?style=svg)](https://circleci.com/gh/valtech-sd/amqp-cacoon)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://badges.frapsoft.com/typescript/code/typescript.svg)](https://github.com/ellerbrock/typescript-badges/)
+[![semantic-release](https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg)](https://github.com/semantic-release/semantic-release)
+
 ## Overview
 
 This is a basic library to provide amqp support. This library is a wrapper around amqplib and makes amqp easier to work with.
