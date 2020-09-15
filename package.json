@@ -22,7 +22,7 @@
     "rules-js": "^1.0.0"
   },
   "author": "Valtech: Daniel Morris",
-  "license": "ISC",
+  "license": "MIT",
   "devDependencies": {
     "@types/amqplib": "^0.5.13",
     "@types/chai": "^4.2.7",
