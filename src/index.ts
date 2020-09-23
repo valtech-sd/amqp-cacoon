@@ -1,9 +1,12 @@
-import amqp from 'amqplib';
+import amqp, {
+  ChannelWrapper,
+  AmqpConnectionManager,
+} from 'amqp-connection-manager';
 import { ConsumeMessage, Connection, Channel, Options } from 'amqplib';
 import { Logger } from 'log4js';
 import MessageBatchingManager from './helpers/message_batching_manager';
 
-export { ConsumeMessage, Channel };
+export { ConsumeMessage, ChannelWrapper, Channel };
 
 const DEFAULT_MAX_FILES_SIZE_BYTES = 1024 * 1024 * 2; // 2 MB
 const DEFAULT_MAX_BUFFER_TIME_MS = 60 * 1000; // 60 seconds
@@ -42,8 +45,10 @@ export interface IAmqpCacoonConfig {
   providers: {
     logger?: Logger;
   };
+  onConnect?: Function; // TODO: This should expect a function signature with a Channel param
   maxWaitForDrainMs?: number; // How long to wait for a drain event if RabbitMq fills up. Zero to wait forever. Defaults to 60000 ms (1 min)
 }
+
 /**
  * AmqpCacoon
  * This module is used to communicate using the RabbitMQ amqp protocol
@@ -54,13 +59,14 @@ export interface IAmqpCacoonConfig {
  * 4. When consuming the callback registered in the previous step will be called when a message is received
  **/
 class AmqpCacoon {
-  private pubChannel: Channel | null;
-  private subChannel: Channel | null;
-  private connection?: Connection;
+  private pubChannelWrapper: ChannelWrapper | null;
+  private subChannelWrapper: ChannelWrapper | null;
+  private connection?: AmqpConnectionManager;
   private fullHostName: string;
   private amqp_opts: object;
   private logger?: Logger;
   private maxWaitForDrainMs: number;
+  private onConnect: Function | null;
 
   /**
    * constructor
@@ -71,12 +77,13 @@ class AmqpCacoon {
    * @param config - Contains the amqp connection config and the Logger provder
    **/
   constructor(config: IAmqpCacoonConfig) {
-    this.pubChannel = null;
-    this.subChannel = null;
+    this.pubChannelWrapper = null;
+    this.subChannelWrapper = null;
     this.fullHostName = config.connectionString || this.getFullHostName(config);
     this.amqp_opts = config.amqp_opts;
     this.logger = config.providers.logger;
     this.maxWaitForDrainMs = config.maxWaitForDrainMs || 60000; // Default to 1 min
+    this.onConnect = config.onConnect || null;
   }
 
   /**
@@ -109,19 +116,33 @@ class AmqpCacoon {
   async getPublishChannel() {
     try {
       // Return the pubChannel if we are already connected
-      if (this.pubChannel) return this.pubChannel;
+      if (this.pubChannelWrapper) {
+        return this.pubChannelWrapper;
+      }
       // Connect if needed
       this.connection =
         this.connection ||
-        (await amqp.connect(this.fullHostName, this.amqp_opts));
-      // Open a channel
-      this.pubChannel = await this.connection.createChannel();
+        (await amqp.connect([this.fullHostName], this.amqp_opts));
+
+      // Open a channel (get reference to ChannelWrapper)
+      // Add a setup function that will be called on each connection retry
+      // This function is specified in the config
+      let self = this;
+      this.pubChannelWrapper = this.connection.createChannel({
+        setup: function (channel: Channel) {
+          // `channel` here is a regular amqplib `ConfirmChannel`.
+          // Note that `this` here is the channelWrapper instance.
+          if (self.onConnect) {
+            self.onConnect();
+          }
+        },
+      });
     } catch (e) {
       if (this.logger) this.logger.error('AMQPCacoon.connect: Error: ', e);
       throw e;
     }
     // Return the channel
-    return this.pubChannel;
+    return this.pubChannelWrapper;
   }
 
   /**
@@ -132,20 +153,32 @@ class AmqpCacoon {
   async getConsumerChannel() {
     try {
       // Return the subChannel if we are already connected
-      if (this.subChannel) return this.subChannel;
+      if (this.subChannelWrapper) return this.subChannelWrapper;
       // Connect if needed
       this.connection =
         this.connection ||
-        (await amqp.connect(this.fullHostName, this.amqp_opts));
-      // Open a channel
-      this.subChannel = await this.connection.createChannel();
+        (await amqp.connect([this.fullHostName], this.amqp_opts));
+
+      // Open a channel (get reference to ChannelWrapper)
+      // Add a setup function that will be called on each connection retry
+      // This function is specified in the config
+      let self = this;
+      this.subChannelWrapper = this.connection.createChannel({
+        setup: function (channel: Channel) {
+          // `channel` here is a regular amqplib `ConfirmChannel`.
+          // Note that `this` here is the channelWrapper instance.
+          if (self.onConnect) {
+            self.onConnect();
+          }
+        },
+      });
     } catch (e) {
       if (this.logger)
         this.logger.error('AMQPCacoon.getConsumerChannel: Error: ', e);
       throw e;
     }
     // Return the channel
-    return this.subChannel;
+    return this.subChannelWrapper;
   }
 
   /**
@@ -153,28 +186,36 @@ class AmqpCacoon {
    * registerConsumer and registerConsumerBatch use this function to register consumers
    *
    * @param queue - Name of the queue
-   * @param handler: (channel: Channel, msg: object) => Promise<any> - A handler that receives the message
+   * @param handler: (channel: ChannelWrapper, msg: object) => Promise<any> - A handler that receives the message
    * @param options : ConsumerOptions - Used to pass in consumer options
    * @return Promise<void>
    **/
   private async registerConsumerPrivate(
     queue: string,
     consumerHandler: (
-      channel: Channel,
+      channel: ChannelWrapper,
       msg: ConsumeMessage | null
     ) => Promise<void>,
     options?: ConsumerOptions
   ) {
     try {
       // Get consumer channel
-      const channel = await this.getConsumerChannel();
+      const channelWrapper = await this.getConsumerChannel();
 
-      // Register a consume on the current channel
-      await channel.consume(
-        queue,
-        consumerHandler.bind(this, channel),
-        options
-      );
+      let self = this;
+
+      channelWrapper.addSetup(function (channel: Channel) {
+        if (self.onConnect) {
+          self.onConnect();
+        }
+
+        // Register a consume on the current channel
+        channel.consume(
+          queue,
+          consumerHandler.bind(self, channelWrapper),
+          options
+        );
+      });
     } catch (e) {
       if (this.logger)
         this.logger.error('AMQPCacoon.registerConsumerPrivate: Error: ', e);
@@ -188,18 +229,18 @@ class AmqpCacoon {
    * get called for messages received on the specified queue
    *
    * @param queue - Name of the queue
-   * @param handler: (channel: Channel, msg: object) => Promise<any> - A handler that receives the message
+   * @param handler: (channel: ChannelWrapper, msg: object) => Promise<any> - A handler that receives the message
    * @param options : ConsumerOptions - Used to pass in consumer options
    * @return Promise<void>
    **/
   async registerConsumer(
     queue: string,
-    handler: (channel: Channel, msg: ConsumeMessage) => Promise<void>,
+    handler: (channel: ChannelWrapper, msg: ConsumeMessage) => Promise<void>,
     options?: ConsumerOptions
   ) {
     return this.registerConsumerPrivate(
       queue,
-      async (channel: Channel, msg: ConsumeMessage | null) => {
+      async (channel: ChannelWrapper, msg: ConsumeMessage | null) => {
         if (!msg) return; // We know this will always be true but typescript requires this
         await handler(channel, msg);
       },
@@ -215,13 +256,16 @@ class AmqpCacoon {
    * 2. batching.maxSizeBytes - Max size in bytes before we return
    *
    * @param queue - Name of the queue
-   * @param handler: (channel: Channel, msg: object) => Promise<any> - A handler that receives the message
+   * @param handler: (channel: ChannelWrapper, msg: object) => Promise<any> - A handler that receives the message
    * @param options : ConsumerOptions - Used to pass in consumer options
    * @return Promise<void>
    **/
   async registerConsumerBatch(
     queue: string,
-    handler: (channel: Channel, msg: ConsumeBatchMessages) => Promise<void>,
+    handler: (
+      channel: ChannelWrapper,
+      msg: ConsumeBatchMessages
+    ) => Promise<void>,
     options?: ConsumerBatchOptions
   ) {
     // Set some default options
@@ -250,7 +294,7 @@ class AmqpCacoon {
     // Register consumer
     return this.registerConsumerPrivate(
       queue,
-      async (channel: Channel, msg: ConsumeMessage | null) => {
+      async (channel: ChannelWrapper, msg: ConsumeMessage | null) => {
         if (!msg) return; // We know this will always be true but typescript requires this
 
         // Handle message batching
@@ -277,6 +321,7 @@ class AmqpCacoon {
     options?: Options.Publish
   ) {
     try {
+      // Actually returns a wrapper
       const channel = await this.getPublishChannel(); // Sets up the publisher channel
 
       // We add a promise so that we can control flow
@@ -303,7 +348,7 @@ class AmqpCacoon {
 
         // Set a handler for the drain event
         await new Promise((resolve, reject) => {
-          if (!this.pubChannel) {
+          if (!this.pubChannelWrapper) {
             // This shouldn't ever happen
             throw new Error(
               `AMQPCacoon.public: Publisher channel has not been set up`
@@ -366,9 +411,9 @@ class AmqpCacoon {
    * @return Promise<void>
    **/
   async closeConsumerChannel() {
-    if (!this.subChannel) return;
-    await this.subChannel.close();
-    this.subChannel = null;
+    if (!this.subChannelWrapper) return;
+    await this.subChannelWrapper.close();
+    this.subChannelWrapper = null;
     return;
   }
 
@@ -378,10 +423,11 @@ class AmqpCacoon {
    * @return Promise<void>
    **/
   async closePublishChannel() {
-    if (!this.pubChannel) return;
-    await this.pubChannel.close();
-    this.pubChannel = null;
+    if (!this.pubChannelWrapper) return;
+    await this.pubChannelWrapper.close();
+    this.pubChannelWrapper = null;
     return;
   }
 }
+
 export default AmqpCacoon;
