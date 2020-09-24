@@ -6,7 +6,9 @@ import { ConsumeMessage, Connection, Channel, Options } from 'amqplib';
 import { Logger } from 'log4js';
 import MessageBatchingManager from './helpers/message_batching_manager';
 
-export { ConsumeMessage, ChannelWrapper, Channel };
+type ConnectCallback = (channel: Channel) => Promise<any>;
+
+export { ConsumeMessage, ChannelWrapper, Channel, ConnectCallback };
 
 const DEFAULT_MAX_FILES_SIZE_BYTES = 1024 * 1024 * 2; // 2 MB
 const DEFAULT_MAX_BUFFER_TIME_MS = 60 * 1000; // 60 seconds
@@ -45,7 +47,7 @@ export interface IAmqpCacoonConfig {
   providers: {
     logger?: Logger;
   };
-  onConnect?: Function; // TODO: This should expect a function signature with a Channel param
+  onConnect?: ConnectCallback; // TODO: This should expect a function signature with a Channel param
   maxWaitForDrainMs?: number; // How long to wait for a drain event if RabbitMq fills up. Zero to wait forever. Defaults to 60000 ms (1 min)
 }
 
@@ -66,7 +68,7 @@ class AmqpCacoon {
   private amqp_opts: object;
   private logger?: Logger;
   private maxWaitForDrainMs: number;
-  private onConnect: Function | null;
+  private onConnect: ConnectCallback | null;
 
   /**
    * constructor
@@ -127,13 +129,14 @@ class AmqpCacoon {
       // Open a channel (get reference to ChannelWrapper)
       // Add a setup function that will be called on each connection retry
       // This function is specified in the config
-      let self = this;
       this.pubChannelWrapper = this.connection.createChannel({
-        setup: function (channel: Channel) {
+        setup: (channel: Channel) => {
           // `channel` here is a regular amqplib `ConfirmChannel`.
-          // Note that `this` here is the channelWrapper instance.
-          if (self.onConnect) {
-            self.onConnect();
+          // return this.onConnect(channel);
+          if (this.onConnect) {
+            return this.onConnect(channel);
+          } else {
+            return Promise.resolve();
           }
         },
       });
@@ -162,13 +165,14 @@ class AmqpCacoon {
       // Open a channel (get reference to ChannelWrapper)
       // Add a setup function that will be called on each connection retry
       // This function is specified in the config
-      let self = this;
       this.subChannelWrapper = this.connection.createChannel({
-        setup: function (channel: Channel) {
+        setup: (channel: Channel) => {
           // `channel` here is a regular amqplib `ConfirmChannel`.
           // Note that `this` here is the channelWrapper instance.
-          if (self.onConnect) {
-            self.onConnect();
+          if (this.onConnect) {
+            return this.onConnect(channel);
+          } else {
+            return Promise.resolve();
           }
         },
       });
@@ -202,17 +206,11 @@ class AmqpCacoon {
       // Get consumer channel
       const channelWrapper = await this.getConsumerChannel();
 
-      let self = this;
-
-      channelWrapper.addSetup(function (channel: Channel) {
-        if (self.onConnect) {
-          self.onConnect();
-        }
-
+      channelWrapper.addSetup( (channel: Channel) => {
         // Register a consume on the current channel
-        channel.consume(
+        return channel.consume(
           queue,
-          consumerHandler.bind(self, channelWrapper),
+          consumerHandler.bind(this, channelWrapper),
           options
         );
       });
@@ -398,10 +396,15 @@ class AmqpCacoon {
   }
 
   async close() {
-    await this.closePublishChannel();
-    await this.closeConsumerChannel();
-    if (this.connection) {
-      return this.connection.close();
+
+    try {
+      await this.closePublishChannel();
+      await this.closeConsumerChannel();
+      if (this.connection) {
+        return this.connection.close();
+      }
+    } catch (error) {
+      // Some unsent messages
     }
   }
 
