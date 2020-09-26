@@ -11,13 +11,13 @@
 
 ## Overview
 
-This is a basic library to provide amqp support. This library is a wrapper around amqplib and makes amqp easier to work with.
+This is a basic library to provide amqp support. Originally, this library was a wrapper around amqplib. It has since been updated to work with [node-amqp-connection-manager](https://github.com/jwalton/node-amqp-connection-manager), which provides support for behind-the-scenes retries on network failure. Node-amqp-connection-manager guarantees receipt of published messages and provides wrappers around potentially non-persistent channels.
 
 ## Features
 
-- Simple interace around amqplib
-- Publish flow control included out of the box (Wait for drain event if we can't publish)
-- timeout if drain event does not occurs after some amount of time when channel is not ready to receive a publish
+- Simple interace around `node-amqp-manager`
+- ~Publish flow control included out of the box (Wait for drain event if we can't publish)
+- timeout if drain event does not occurs after some amount of time when channel is not ready to receive a publish~. As of 9/26, the publish on drain functionality has been removed, as `node-amqp-manager` does not support it at this time (pending a bugfix).
 - Consume single or batch of messages
 
 ## Requirements to tests
@@ -147,9 +147,15 @@ amqpCacoon.registerConsumerBatch(
 );
 ```
 
+## Amqp-connection-manager Setup function
+[TODO]
+
+## Amqp-connection-manager ChannelWrapper
+[TODO]
+
 ## Dealing With Channels
 
-This library expose amqplib channel when you call either `getConsumerChannel` or `getPublishChannel`. The channel is also exposed when registering a consumer. To learn more about that api see documentation for [amqplib](https://www.npmjs.com/package/amqplib). Just a couple thing that you should remember to do.
+This library exposes node-amqp-connection-manager's ChannelWrapper when you call either `getConsumerChannel` or `getPublishChannel`. The channel is also exposed when registering a consumer. To learn more about that api see documentation for [amqplib](https://www.npmjs.com/package/amqplib). Just a couple thing that you should remember to do.
 
 1. Remember to ack or nack on all messages.
 2. An alternative is to pass an option into the `registerConsumer` to not require an ack (noAck). The problem with this is that if your application is reset or errors out, you may loose the message or messages.
