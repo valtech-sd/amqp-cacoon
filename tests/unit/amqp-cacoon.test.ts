@@ -58,8 +58,7 @@ describe('Amqp Cacoon', () => {
                 await channel.assertQueue(config.messageBus.testQueue);
                 await channel.purgeQueue(config.messageBus.testQueue);
             }
-        },
-        maxWaitForDrainMs: 50,
+        }
     };
 
     afterEach(() => {
