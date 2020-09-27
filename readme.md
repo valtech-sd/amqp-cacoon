@@ -147,17 +147,15 @@ amqpCacoon.registerConsumerBatch(
 );
 ```
 
-## Amqp-connection-manager Setup function
-[TODO]
+## Dealing With Channels via ChannelWrapper
 
-## Amqp-connection-manager ChannelWrapper
-[TODO]
+This library exposes node-amqp-connection-manager's ChannelWrapper when you call either `getConsumerChannel` or `getPublishChannel`. Instead of exposing the Amqp Channel directly (which may or may not be valid depending on the network status), AmqpConnectionManager provides a ChannelWrapper class as an interface to interacting with the underlying channel. Most functions that can be performed on an AmqpLib `Channel` can be performed on the `ChannelWrapper`, including `ackAll`, `nackAll`, etc. though they are Promise-based. See [AMQPConnectionManager's documentation](https://github.com/jwalton/node-amqp-connection-manager) for more info, as well as the underlying [amqplib docs](https://www.npmjs.com/package/amqplib).
 
-## Dealing With Channels
-
-This library exposes node-amqp-connection-manager's ChannelWrapper when you call either `getConsumerChannel` or `getPublishChannel`. The channel is also exposed when registering a consumer. To learn more about that api see documentation for [amqplib](https://www.npmjs.com/package/amqplib). Just a couple thing that you should remember to do.
+Just a couple thing that you should remember to do.
 
 1. Remember to ack or nack on all messages.
 2. An alternative is to pass an option into the `registerConsumer` to not require an ack (noAck). The problem with this is that if your application is reset or errors out, you may loose the message or messages.
 
 
+## Amqp-connection-manager Setup function
+AmqpConnectionManager allows a setup function to be passed in its configuration, or added to a ChannelWrapper at any point. This function can be used with callbacks or Promises and direclty exposes the underlying AMQP channel (since we know it is valid at that point). The setup function is useful for asserting queues and performing other necessary tasks that must be completed once a valid connection to amqp is made. Again, see [AMQPConnectionManager's documentation](https://github.com/jwalton/node-amqp-connection-manager) for more details.
