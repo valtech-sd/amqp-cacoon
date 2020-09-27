@@ -2,7 +2,7 @@ import amqp, {
     ChannelWrapper,
     AmqpConnectionManager,
 } from 'amqp-connection-manager';
-import {ConsumeMessage, Connection, Channel, Options} from 'amqplib';
+import {ConsumeMessage, Channel, Options} from 'amqplib';
 import {Logger} from 'log4js';
 import MessageBatchingManager from './helpers/message_batching_manager';
 
@@ -48,7 +48,9 @@ export interface IAmqpCacoonConfig {
     providers: {
         logger?: Logger;
     };
-    onConnect?: ConnectCallback;
+    onChannelConnect?: ConnectCallback;
+    onBrokerConnect?: Function;
+    onBrokerDisconnect?: Function;
     // maxWaitForDrainMs?: number; // How long to wait for a drain event if RabbitMq fills up. Zero to wait forever. Defaults to 60000 ms (1 min)
 }
 
@@ -69,7 +71,9 @@ class AmqpCacoon {
     private amqp_opts: object;
     private logger?: Logger;
     // private maxWaitForDrainMs: number;
-    private onConnect: ConnectCallback | null;
+    private onChannelConnect: ConnectCallback | null;
+    private onBrokerConnect: Function | null;
+    private onBrokerDisconnect: Function | null;
 
     /**
      * constructor
@@ -86,7 +90,11 @@ class AmqpCacoon {
         this.amqp_opts = config.amqp_opts;
         this.logger = config.providers.logger;
         // this.maxWaitForDrainMs = config.maxWaitForDrainMs || 60000; // Default to 1 min
-        this.onConnect = config.onConnect || null;
+        this.onChannelConnect = config.onChannelConnect || null;
+        this.onBrokerConnect = config.onBrokerConnect || null;
+        this.onBrokerDisconnect = config.onBrokerDisconnect || null;
+
+
     }
 
     /**
@@ -110,6 +118,17 @@ class AmqpCacoon {
         return fullHostNameString;
     }
 
+    private injectConnectionEvents(connection: AmqpConnectionManager) {
+        // Subscribe to onConnect / onDisconnection functions for debugging
+        connection.on('connect', () => {
+            this.handleBrokerConnect();
+        });
+
+        connection.on('disconnect', () => {
+            this.handleBrokerDisonnect();
+        });
+    }
+
     /**
      * getPublishChannel
      * This connects to amqp and creates a channel or gets the current channel
@@ -126,23 +145,29 @@ class AmqpCacoon {
                 this.connection ||
                 (await amqp.connect([this.fullHostName], this.amqp_opts));
 
+            if (this.connection) {
+                this.injectConnectionEvents(this.connection);
+            }
+
             // Open a channel (get reference to ChannelWrapper)
             // Add a setup function that will be called on each connection retry
             // This function is specified in the config
-            this.pubChannelWrapper = this.connection.createChannel({
+            this
+                .pubChannelWrapper = this.connection.createChannel({
                 setup: (channel: Channel) => {
-                    if (this.onConnect) {
-                        return this.onConnect(channel);
+                    if (this.onChannelConnect) {
+                        return this.onChannelConnect(channel);
                     } else {
                         return Promise.resolve();
                     }
                 },
             });
-        } catch (e) {
+        } catch
+            (e) {
             if (this.logger) this.logger.error('AMQPCacoon.connect: Error: ', e);
             throw e;
         }
-        // Return the channel
+// Return the channel
         return this.pubChannelWrapper;
     }
 
@@ -160,6 +185,10 @@ class AmqpCacoon {
                 this.connection ||
                 (await amqp.connect([this.fullHostName], this.amqp_opts));
 
+            if (this.connection) {
+                this.injectConnectionEvents(this.connection);
+            }
+
             // Open a channel (get reference to ChannelWrapper)
             // Add a setup function that will be called on each connection retry
             // This function is specified in the config
@@ -167,8 +196,8 @@ class AmqpCacoon {
                 setup: (channel: Channel) => {
                     // `channel` here is a regular amqplib `ConfirmChannel`.
                     // Note that `this` here is the channelWrapper instance.
-                    if (this.onConnect) {
-                        return this.onConnect(channel);
+                    if (this.onChannelConnect) {
+                        return this.onChannelConnect(channel);
                     } else {
                         return Promise.resolve();
                     }
@@ -188,7 +217,7 @@ class AmqpCacoon {
      * registerConsumer and registerConsumerBatch use this function to register consumers
      *
      * @param queue - Name of the queue
-     * @param handler: (channel: ChannelWrapper, msg: object) => Promise<any> - A handler that receives the message
+     * @param consumerHandler: (channel: ChannelWrapper, msg: object) => Promise<any> - A handler that receives the message
      * @param options : ConsumerOptions - Used to pass in consumer options
      * @return Promise<void>
      **/
@@ -372,6 +401,30 @@ class AmqpCacoon {
         await this.pubChannelWrapper.close();
         this.pubChannelWrapper = null;
         return;
+    }
+
+    /**
+     * handleBrokerConnect
+     * Fires onBrokerConnect callback function whenever amqp connection is made
+     *
+     * @return void
+     **/
+    private handleBrokerConnect() {
+        if (this.onBrokerConnect) {
+            this.onBrokerConnect();
+        }
+    }
+
+    /**
+     * handleBrokerDisconnect
+     * Fires onBrokerDisconnect callback function whenever amqp connection is lost
+     *
+     * @return void
+     **/
+    private handleBrokerDisonnect() {
+        if (this.onBrokerDisconnect) {
+            this.onBrokerDisconnect();
+        }
     }
 }
 
