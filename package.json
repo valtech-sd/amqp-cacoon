@@ -20,8 +20,7 @@
     "amqp-connection-manager": "^3.2.1",
     "amqplib": "^0.5.5",
     "lodash": "^4.17.15",
-    "log4js": "^6.1.0",
-    "rules-js": "^1.0.0"
+    "log4js": "^6.1.0"
   },
   "author": "Valtech: Daniel Morris",
   "license": "MIT",
