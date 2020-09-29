@@ -49,8 +49,8 @@ export interface IAmqpCacoonConfig {
     logger?: Logger;
   };
   onChannelConnect?: ConnectCallback;
-  onBrokerConnect?: Function;
-  onBrokerDisconnect?: Function;
+  onBrokerConnect?: () => void;
+  onBrokerDisconnect?: () => void;
   // maxWaitForDrainMs?: number; // How long to wait for a drain event if RabbitMq fills up. Zero to wait forever. Defaults to 60000 ms (1 min)
 }
 
