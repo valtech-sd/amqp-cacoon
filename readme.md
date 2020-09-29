@@ -19,6 +19,8 @@ This is a basic library to provide amqp support. Originally, this library was a 
 - ~~Publish flow control included out of the box (Wait for drain event if we can't publish)~~
 - timeout if drain event does not occurs after some amount of time when channel is not ready to receive a publish~. As of 9/26, the publish on drain functionality has been removed, as `node-amqp-manager` does not support it at this time (pending a bugfix).
 - Consume single or batch of messages
+- Automatically handles reconnect if AMQP connection is lost and re-established
+- Caches published messages if they are published while AMQP is disconnected
 
 ## Requirements to tests
 
