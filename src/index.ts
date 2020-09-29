@@ -142,8 +142,7 @@ class AmqpCacoon {
       }
       // Connect if needed
       this.connection =
-        this.connection ||
-        (await amqp.connect([this.fullHostName], this.amqp_opts));
+        this.connection || amqp.connect([this.fullHostName], this.amqp_opts);
 
       if (this.connection) {
         this.injectConnectionEvents(this.connection);
@@ -182,8 +181,7 @@ class AmqpCacoon {
       if (this.subChannelWrapper) return this.subChannelWrapper;
       // Connect if needed
       this.connection =
-        this.connection ||
-        (await amqp.connect([this.fullHostName], this.amqp_opts));
+        this.connection || amqp.connect([this.fullHostName], this.amqp_opts);
 
       if (this.connection) {
         this.injectConnectionEvents(this.connection);
