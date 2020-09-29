@@ -1,5 +1,5 @@
-import { ChannelWrapper, ConsumeMessage, ConsumeBatchMessages } from '../index';
-import { Logger } from 'log4js';
+import {ChannelWrapper, ConsumeMessage, ConsumeBatchMessages} from '../index';
+import {Logger} from 'log4js';
 
 export interface IMessageBatchingManagerConfig {
   providers: {
@@ -16,6 +16,7 @@ export default class MessageBatchingManager {
   private timerHandle?: NodeJS.Timeout;
   private amqpChannel?: ChannelWrapper;
   private logger?: Logger;
+
   constructor(private config: IMessageBatchingManagerConfig) {
     this.logger = config.providers.logger;
 
@@ -73,7 +74,7 @@ export default class MessageBatchingManager {
     // 2. Reset message list
     this.resetMessages();
 
-    return { bufferSize, unackedMessageList };
+    return {bufferSize, unackedMessageList};
   }
 
   /**
@@ -148,7 +149,7 @@ export default class MessageBatchingManager {
     let bufferSize: number;
     try {
       // 1. Finalize message buffer and fetch buffer and unackedMessageList
-      ({ bufferSize, unackedMessageList } = this.finalizeMessages());
+      ({bufferSize, unackedMessageList} = this.finalizeMessages());
 
       // 2. Send messages to handler
       let messages: ConsumeBatchMessages = {
