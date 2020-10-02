@@ -11,14 +11,16 @@
 
 ## Overview
 
-This is a basic library to provide amqp support. This library is a wrapper around amqplib and makes amqp easier to work with.
+This is a basic library to provide amqp support. Originally, this library was a wrapper around amqplib. It has since been updated to work with [node-amqp-connection-manager](https://github.com/jwalton/node-amqp-connection-manager), which provides support for behind-the-scenes retries on network failure. Node-amqp-connection-manager guarantees receipt of published messages and provides wrappers around potentially non-persistent channels.
 
 ## Features
 
-- Simple interace around amqplib
-- Publish flow control included out of the box (Wait for drain event if we can't publish)
-- timeout if drain event does not occurs after some amount of time when channel is not ready to receive a publish
+- Simple interace around `node-amqp-manager`
+- ~~Publish flow control included out of the box (Wait for drain event if we can't publish)~~
+- timeout if drain event does not occurs after some amount of time when channel is not ready to receive a publish~. As of 9/26, the publish on drain functionality has been removed, as `node-amqp-manager` does not support it at this time (pending a bugfix).
 - Consume single or batch of messages
+- Automatically handles reconnect if AMQP connection is lost and re-established
+- Caches published messages if they are published while AMQP is disconnected
 
 ## Requirements to tests
 
@@ -147,11 +149,15 @@ amqpCacoon.registerConsumerBatch(
 );
 ```
 
-## Dealing With Channels
+## Dealing With Channels via ChannelWrapper
 
-This library expose amqplib channel when you call either `getConsumerChannel` or `getPublishChannel`. The channel is also exposed when registering a consumer. To learn more about that api see documentation for [amqplib](https://www.npmjs.com/package/amqplib). Just a couple thing that you should remember to do.
+This library exposes node-amqp-connection-manager's ChannelWrapper when you call either `getConsumerChannel` or `getPublishChannel`. Instead of exposing the Amqp Channel directly (which may or may not be valid depending on the network status), AmqpConnectionManager provides a ChannelWrapper class as an interface to interacting with the underlying channel. Most functions that can be performed on an AmqpLib `Channel` can be performed on the `ChannelWrapper`, including `ackAll`, `nackAll`, etc. though they are Promise-based. See [AMQPConnectionManager's documentation](https://github.com/jwalton/node-amqp-connection-manager) for more info, as well as the underlying [amqplib docs](https://www.npmjs.com/package/amqplib).
+
+Just a couple thing that you should remember to do.
 
 1. Remember to ack or nack on all messages.
 2. An alternative is to pass an option into the `registerConsumer` to not require an ack (noAck). The problem with this is that if your application is reset or errors out, you may loose the message or messages.
 
 
+## Amqp-connection-manager Setup function
+AmqpConnectionManager allows a setup function to be passed in its configuration, or added to a ChannelWrapper at any point. This function can be used with callbacks or Promises and direclty exposes the underlying AMQP channel (since we know it is valid at that point). The setup function is useful for asserting queues and performing other necessary tasks that must be completed once a valid connection to amqp is made. Again, see [AMQPConnectionManager's documentation](https://github.com/jwalton/node-amqp-connection-manager) for more details.

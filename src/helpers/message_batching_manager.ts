@@ -1,5 +1,5 @@
-import { Channel, ConsumeMessage, ConsumeBatchMessages } from '../index';
-import { Logger } from 'log4js';
+import {ChannelWrapper, ConsumeMessage, ConsumeBatchMessages} from '../index';
+import {Logger} from 'log4js';
 
 export interface IMessageBatchingManagerConfig {
   providers: {
@@ -14,8 +14,9 @@ export default class MessageBatchingManager {
   private unackedMessageList: Array<ConsumeMessage> = [];
   private bufferSize: number = 1;
   private timerHandle?: NodeJS.Timeout;
-  private amqpChannel?: Channel;
+  private amqpChannel?: ChannelWrapper;
   private logger?: Logger;
+
   constructor(private config: IMessageBatchingManagerConfig) {
     this.logger = config.providers.logger;
 
@@ -73,7 +74,7 @@ export default class MessageBatchingManager {
     // 2. Reset message list
     this.resetMessages();
 
-    return { bufferSize, unackedMessageList };
+    return {bufferSize, unackedMessageList};
   }
 
   /**
@@ -85,7 +86,7 @@ export default class MessageBatchingManager {
    * @param channel: Channel - Channel
    * @param messageList: Array<ConsumeMessage> - Messages to be acked
    */
-  ackMessageList(channel: Channel, messageList: Array<ConsumeMessage>) {
+  ackMessageList(channel: ChannelWrapper, messageList: Array<ConsumeMessage>) {
     if (this.logger) {
       this.logger.trace(`MessageBatchingManager.ackMessageList: Start`);
     }
@@ -109,7 +110,7 @@ export default class MessageBatchingManager {
    * @param messageList: Array<ConsumeMessage> - Messages to be nacked
    */
   nackMessageList(
-    channel: Channel,
+    channel: ChannelWrapper,
     messageList: Array<ConsumeMessage>,
     requeue?: boolean
   ) {
@@ -138,14 +139,17 @@ export default class MessageBatchingManager {
    * @returns void
    */
   async sendBufferedMessages(
-    channel: Channel,
-    handler: (channel: Channel, msg: ConsumeBatchMessages) => Promise<void>
+    channel: ChannelWrapper,
+    handler: (
+      channel: ChannelWrapper,
+      msg: ConsumeBatchMessages
+    ) => Promise<void>
   ) {
     let unackedMessageList: Array<ConsumeMessage> = [];
     let bufferSize: number;
     try {
       // 1. Finalize message buffer and fetch buffer and unackedMessageList
-      ({ bufferSize, unackedMessageList } = this.finalizeMessages());
+      ({bufferSize, unackedMessageList} = this.finalizeMessages());
 
       // 2. Send messages to handler
       let messages: ConsumeBatchMessages = {
@@ -190,9 +194,12 @@ export default class MessageBatchingManager {
    * @returns void
    */
   async handleMessageBuffering(
-    channel: Channel,
+    channel: ChannelWrapper,
     msg: ConsumeMessage,
-    handler: (channel: Channel, msg: ConsumeBatchMessages) => Promise<void>
+    handler: (
+      channel: ChannelWrapper,
+      msg: ConsumeBatchMessages
+    ) => Promise<void>
   ) {
     // 1. Set channel variable for this object. This way we don't have to do an async call elswhere.
     this.amqpChannel = channel;

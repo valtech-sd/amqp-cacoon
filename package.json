@@ -16,14 +16,15 @@
     "test": "mocha -r ts-node/register ./tests/**/*.test.ts"
   },
   "dependencies": {
-    "amqplib": "^0.5.5",
+    "amqp-connection-manager": "^3.2.1",
+    "amqplib": "^0.6.0",
     "lodash": "^4.17.15",
-    "log4js": "^6.1.0",
-    "rules-js": "^1.0.0"
+    "log4js": "^6.1.0"
   },
   "author": "Valtech: Daniel Morris",
   "license": "MIT",
   "devDependencies": {
+    "@types/amqp-connection-manager": "^2.0.10",
     "@types/amqplib": "^0.5.13",
     "@types/chai": "^4.2.7",
     "@types/lodash": "^4.14.149",

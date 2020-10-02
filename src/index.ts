@@ -1,9 +1,14 @@
-import amqp from 'amqplib';
-import { ConsumeMessage, Connection, Channel, Options } from 'amqplib';
-import { Logger } from 'log4js';
+import amqp, {
+  ChannelWrapper,
+  AmqpConnectionManager,
+} from 'amqp-connection-manager';
+import {ConsumeMessage, Channel, Options} from 'amqplib';
+import {Logger} from 'log4js';
 import MessageBatchingManager from './helpers/message_batching_manager';
 
-export { ConsumeMessage, Channel };
+type ConnectCallback = (channel: Channel) => Promise<any>;
+
+export {ConsumeMessage, ChannelWrapper, Channel, ConnectCallback};
 
 const DEFAULT_MAX_FILES_SIZE_BYTES = 1024 * 1024 * 2; // 2 MB
 const DEFAULT_MAX_BUFFER_TIME_MS = 60 * 1000; // 60 seconds
@@ -21,7 +26,8 @@ export interface ConsumeBatchMessages {
 }
 
 // Used for registerConsumer function
-export interface ConsumerOptions extends Options.Consume {}
+export interface ConsumerOptions extends Options.Consume {
+}
 
 // Used for registerConsumerBatch function
 export interface ConsumerBatchOptions extends Options.Consume {
@@ -42,25 +48,32 @@ export interface IAmqpCacoonConfig {
   providers: {
     logger?: Logger;
   };
-  maxWaitForDrainMs?: number; // How long to wait for a drain event if RabbitMq fills up. Zero to wait forever. Defaults to 60000 ms (1 min)
+  onChannelConnect?: ConnectCallback;
+  onBrokerConnect?: () => void;
+  onBrokerDisconnect?: () => void;
+  // maxWaitForDrainMs?: number; // How long to wait for a drain event if RabbitMq fills up. Zero to wait forever. Defaults to 60000 ms (1 min)
 }
+
 /**
  * AmqpCacoon
  * This module is used to communicate using the RabbitMQ amqp protocol
  * Usage
  * 1. Instantiate and pass in the configuration using the IAmqpCacoonConfig interface
  * 2. Call publish() function to publish a message
- * 3. To consume messages call registerConsumer() passing in a handler funciton
+ * 3. To consume messages call registerConsumer() passing in a handler function
  * 4. When consuming the callback registered in the previous step will be called when a message is received
  **/
 class AmqpCacoon {
-  private pubChannel: Channel | null;
-  private subChannel: Channel | null;
-  private connection?: Connection;
+  private pubChannelWrapper: ChannelWrapper | null;
+  private subChannelWrapper: ChannelWrapper | null;
+  private connection?: AmqpConnectionManager;
   private fullHostName: string;
   private amqp_opts: object;
   private logger?: Logger;
-  private maxWaitForDrainMs: number;
+  // private maxWaitForDrainMs: number;
+  private onChannelConnect: ConnectCallback | null;
+  private onBrokerConnect: Function | null;
+  private onBrokerDisconnect: Function | null;
 
   /**
    * constructor
@@ -71,12 +84,17 @@ class AmqpCacoon {
    * @param config - Contains the amqp connection config and the Logger provder
    **/
   constructor(config: IAmqpCacoonConfig) {
-    this.pubChannel = null;
-    this.subChannel = null;
-    this.fullHostName = config.connectionString || this.getFullHostName(config);
+    this.pubChannelWrapper = null;
+    this.subChannelWrapper = null;
+    this.fullHostName = config.connectionString || AmqpCacoon.getFullHostName(config);
     this.amqp_opts = config.amqp_opts;
     this.logger = config.providers.logger;
-    this.maxWaitForDrainMs = config.maxWaitForDrainMs || 60000; // Default to 1 min
+    // this.maxWaitForDrainMs = config.maxWaitForDrainMs || 60000; // Default to 1 min
+    this.onChannelConnect = config.onChannelConnect || null;
+    this.onBrokerConnect = config.onBrokerConnect || null;
+    this.onBrokerDisconnect = config.onBrokerDisconnect || null;
+
+
   }
 
   /**
@@ -84,7 +102,7 @@ class AmqpCacoon {
    * Just generates the full connection name for amqp based on the passed in config
    * @param config - Contains the amqp connection config
    **/
-  private getFullHostName(config: IAmqpCacoonConfig) {
+  private static getFullHostName(config: IAmqpCacoonConfig) {
     var fullHostNameString =
       config.protocol +
       '://' +
@@ -97,55 +115,99 @@ class AmqpCacoon {
     if (config.port) {
       fullHostNameString = fullHostNameString + ':' + config.port;
     }
-
     return fullHostNameString;
+  }
+
+  private injectConnectionEvents(connection: AmqpConnectionManager) {
+    // Subscribe to onConnect / onDisconnection functions for debugging
+    connection.on('connect', () => {
+      this.handleBrokerConnect();
+    });
+
+    connection.on('disconnect', () => {
+      this.handleBrokerDisonnect();
+    });
   }
 
   /**
    * getPublishChannel
    * This connects to amqp and creates a channel or gets the current channel
-   * @return channel
+   * @return ChannelWrapper
    **/
   async getPublishChannel() {
     try {
       // Return the pubChannel if we are already connected
-      if (this.pubChannel) return this.pubChannel;
+      if (this.pubChannelWrapper) {
+        return this.pubChannelWrapper;
+      }
       // Connect if needed
       this.connection =
-        this.connection ||
-        (await amqp.connect(this.fullHostName, this.amqp_opts));
-      // Open a channel
-      this.pubChannel = await this.connection.createChannel();
-    } catch (e) {
+        this.connection || amqp.connect([this.fullHostName], this.amqp_opts);
+
+      if (this.connection) {
+        this.injectConnectionEvents(this.connection);
+      }
+
+      // Open a channel (get reference to ChannelWrapper)
+      // Add a setup function that will be called on each connection retry
+      // This function is specified in the config
+      this
+        .pubChannelWrapper = this.connection.createChannel({
+        setup: (channel: Channel) => {
+          if (this.onChannelConnect) {
+            return this.onChannelConnect(channel);
+          } else {
+            return Promise.resolve();
+          }
+        },
+      });
+    } catch
+      (e) {
       if (this.logger) this.logger.error('AMQPCacoon.connect: Error: ', e);
       throw e;
     }
-    // Return the channel
-    return this.pubChannel;
+// Return the channel
+    return this.pubChannelWrapper;
   }
 
   /**
    * getConsumerChannel
    * This connects to amqp and creates a channel or gets the current channel
-   * @return channel
+   * @return ChannelWrapper
    **/
   async getConsumerChannel() {
     try {
       // Return the subChannel if we are already connected
-      if (this.subChannel) return this.subChannel;
+      if (this.subChannelWrapper) return this.subChannelWrapper;
       // Connect if needed
       this.connection =
-        this.connection ||
-        (await amqp.connect(this.fullHostName, this.amqp_opts));
-      // Open a channel
-      this.subChannel = await this.connection.createChannel();
+        this.connection || amqp.connect([this.fullHostName], this.amqp_opts);
+
+      if (this.connection) {
+        this.injectConnectionEvents(this.connection);
+      }
+
+      // Open a channel (get reference to ChannelWrapper)
+      // Add a setup function that will be called on each connection retry
+      // This function is specified in the config
+      this.subChannelWrapper = this.connection.createChannel({
+        setup: (channel: Channel) => {
+          // `channel` here is a regular amqplib `ConfirmChannel`.
+          // Note that `this` here is the channelWrapper instance.
+          if (this.onChannelConnect) {
+            return this.onChannelConnect(channel);
+          } else {
+            return Promise.resolve();
+          }
+        },
+      });
     } catch (e) {
       if (this.logger)
         this.logger.error('AMQPCacoon.getConsumerChannel: Error: ', e);
       throw e;
     }
     // Return the channel
-    return this.subChannel;
+    return this.subChannelWrapper;
   }
 
   /**
@@ -153,28 +215,30 @@ class AmqpCacoon {
    * registerConsumer and registerConsumerBatch use this function to register consumers
    *
    * @param queue - Name of the queue
-   * @param handler: (channel: Channel, msg: object) => Promise<any> - A handler that receives the message
+   * @param consumerHandler: (channel: ChannelWrapper, msg: object) => Promise<any> - A handler that receives the message
    * @param options : ConsumerOptions - Used to pass in consumer options
    * @return Promise<void>
    **/
   private async registerConsumerPrivate(
     queue: string,
     consumerHandler: (
-      channel: Channel,
+      channel: ChannelWrapper,
       msg: ConsumeMessage | null
     ) => Promise<void>,
     options?: ConsumerOptions
   ) {
     try {
       // Get consumer channel
-      const channel = await this.getConsumerChannel();
+      const channelWrapper = await this.getConsumerChannel();
 
-      // Register a consume on the current channel
-      await channel.consume(
-        queue,
-        consumerHandler.bind(this, channel),
-        options
-      );
+      channelWrapper.addSetup((channel: Channel) => {
+        // Register a consume on the current channel
+        return channel.consume(
+          queue,
+          consumerHandler.bind(this, channelWrapper),
+          options
+        );
+      });
     } catch (e) {
       if (this.logger)
         this.logger.error('AMQPCacoon.registerConsumerPrivate: Error: ', e);
@@ -188,18 +252,18 @@ class AmqpCacoon {
    * get called for messages received on the specified queue
    *
    * @param queue - Name of the queue
-   * @param handler: (channel: Channel, msg: object) => Promise<any> - A handler that receives the message
+   * @param handler: (channel: ChannelWrapper, msg: object) => Promise<any> - A handler that receives the message
    * @param options : ConsumerOptions - Used to pass in consumer options
    * @return Promise<void>
    **/
   async registerConsumer(
     queue: string,
-    handler: (channel: Channel, msg: ConsumeMessage) => Promise<void>,
+    handler: (channel: ChannelWrapper, msg: ConsumeMessage) => Promise<void>,
     options?: ConsumerOptions
   ) {
     return this.registerConsumerPrivate(
       queue,
-      async (channel: Channel, msg: ConsumeMessage | null) => {
+      async (channel: ChannelWrapper, msg: ConsumeMessage | null) => {
         if (!msg) return; // We know this will always be true but typescript requires this
         await handler(channel, msg);
       },
@@ -215,13 +279,16 @@ class AmqpCacoon {
    * 2. batching.maxSizeBytes - Max size in bytes before we return
    *
    * @param queue - Name of the queue
-   * @param handler: (channel: Channel, msg: object) => Promise<any> - A handler that receives the message
+   * @param handler: (channel: ChannelWrapper, msg: object) => Promise<any> - A handler that receives the message
    * @param options : ConsumerOptions - Used to pass in consumer options
    * @return Promise<void>
    **/
   async registerConsumerBatch(
     queue: string,
-    handler: (channel: Channel, msg: ConsumeBatchMessages) => Promise<void>,
+    handler: (
+      channel: ChannelWrapper,
+      msg: ConsumeBatchMessages
+    ) => Promise<void>,
     options?: ConsumerBatchOptions
   ) {
     // Set some default options
@@ -241,7 +308,7 @@ class AmqpCacoon {
     // Initialize Message batching manager
     let messageBatchingHandler: MessageBatchingManager;
     messageBatchingHandler = new MessageBatchingManager({
-      providers: { logger: this.logger },
+      providers: {logger: this.logger},
       maxSizeBytes: options?.batching?.maxSizeBytes,
       maxTimeMs: options?.batching?.maxTimeMs,
       skipNackOnFail: options?.noAck,
@@ -250,7 +317,7 @@ class AmqpCacoon {
     // Register consumer
     return this.registerConsumerPrivate(
       queue,
-      async (channel: Channel, msg: ConsumeMessage | null) => {
+      async (channel: ChannelWrapper, msg: ConsumeMessage | null) => {
         if (!msg) return; // We know this will always be true but typescript requires this
 
         // Handle message batching
@@ -277,75 +344,20 @@ class AmqpCacoon {
     options?: Options.Publish
   ) {
     try {
+      // Actually returns a wrapper
       const channel = await this.getPublishChannel(); // Sets up the publisher channel
 
-      // We add a promise so that we can control flow
-      // Perform the channel operation and hold the result which will be true/false per AMQP Lib docs
-      const channelReady = channel.publish(
+      // TODO: Alex: Does the guaranteed publish eliminate the need to handle drain events?
+      // There's currently a reported bug in node-amqp-connection-manager saying the lib does
+      // not handle drain events properly...we should fix this.
+      await channel.publish(
         exchange,
         routingKey,
         msgBuffer,
         options
       );
-      if (this.logger) {
-        this.logger.trace(`AMQPCacoon.publish result: ${channelReady}`);
-      }
-      // Check the result. channelReady == true means we can keep sending, so we resolve this promise
-      if (channelReady) {
-        return;
-      } else {
-        // Otherwise, channelReady == false so we have to wait for the pubChannel's on 'drain'
-        if (this.logger) {
-          this.logger.info(
-            'AMQPCacoon.publish buffer full. Waiting for "drain"...'
-          );
-        }
+      return;
 
-        // Set a handler for the drain event
-        await new Promise((resolve, reject) => {
-          if (!this.pubChannel) {
-            // This shouldn't ever happen
-            throw new Error(
-              `AMQPCacoon.public: Publisher channel has not been set up`
-            );
-          }
-          // Set a timeout in case Drain is slow, at least we log it
-          let timeoutHandler: any =
-            this.maxWaitForDrainMs !== 0
-              ? setTimeout(() => {
-                  if (this.logger) {
-                    this.logger.info(
-                      `AMQPCacoon.publish: After a full buffer, slow buffer: \nmsg: ${msgBuffer.toString(
-                        'utf8'
-                      )}`
-                    );
-                  }
-                  if (timeoutHandler) {
-                    timeoutHandler = null;
-                    reject(
-                      new Error(
-                        `AMQPCacoon.public: Timeout after ${this.maxWaitForDrainMs}ms`
-                      )
-                    );
-                  }
-                }, this.maxWaitForDrainMs)
-              : true;
-
-          channel.once('drain', () => {
-            if (this.logger) {
-              this.logger.trace('AMQPCacoon.publish: "drain" received.');
-            }
-            // resolve since we now can proceed
-            if (timeoutHandler) {
-              if (this.maxWaitForDrainMs !== 0) {
-                clearTimeout(timeoutHandler);
-                timeoutHandler = null;
-              }
-              resolve();
-            }
-          });
-        });
-      }
     } catch (e) {
       if (this.logger) this.logger.error('AMQPCacoon.publish: Error: ', e);
       throw e;
@@ -353,10 +365,15 @@ class AmqpCacoon {
   }
 
   async close() {
-    await this.closePublishChannel();
-    await this.closeConsumerChannel();
-    if (this.connection) {
-      return this.connection.close();
+
+    try {
+      await this.closePublishChannel();
+      await this.closeConsumerChannel();
+      if (this.connection) {
+        return this.connection.close();
+      }
+    } catch (error) {
+      // Some unsent messages
     }
   }
 
@@ -366,9 +383,9 @@ class AmqpCacoon {
    * @return Promise<void>
    **/
   async closeConsumerChannel() {
-    if (!this.subChannel) return;
-    await this.subChannel.close();
-    this.subChannel = null;
+    if (!this.subChannelWrapper) return;
+    await this.subChannelWrapper.close();
+    this.subChannelWrapper = null;
     return;
   }
 
@@ -378,10 +395,35 @@ class AmqpCacoon {
    * @return Promise<void>
    **/
   async closePublishChannel() {
-    if (!this.pubChannel) return;
-    await this.pubChannel.close();
-    this.pubChannel = null;
+    if (!this.pubChannelWrapper) return;
+    await this.pubChannelWrapper.close();
+    this.pubChannelWrapper = null;
     return;
   }
+
+  /**
+   * handleBrokerConnect
+   * Fires onBrokerConnect callback function whenever amqp connection is made
+   *
+   * @return void
+   **/
+  private handleBrokerConnect() {
+    if (this.onBrokerConnect) {
+      this.onBrokerConnect();
+    }
+  }
+
+  /**
+   * handleBrokerDisconnect
+   * Fires onBrokerDisconnect callback function whenever amqp connection is lost
+   *
+   * @return void
+   **/
+  private handleBrokerDisonnect() {
+    if (this.onBrokerDisconnect) {
+      this.onBrokerDisconnect();
+    }
+  }
 }
+
 export default AmqpCacoon;
