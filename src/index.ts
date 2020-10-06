@@ -2,13 +2,13 @@ import amqp, {
   ChannelWrapper,
   AmqpConnectionManager,
 } from 'amqp-connection-manager';
-import {ConsumeMessage, Channel, Options} from 'amqplib';
+import {ConsumeMessage, Channel, ConfirmChannel, Options} from 'amqplib';
 import {Logger} from 'log4js';
 import MessageBatchingManager from './helpers/message_batching_manager';
 
-type ConnectCallback = (channel: Channel) => Promise<any>;
+type ConnectCallback = (channel: ConfirmChannel) => Promise<any>;
 
-export {ConsumeMessage, ChannelWrapper, Channel, ConnectCallback};
+export {ConsumeMessage, ChannelWrapper, Channel, ConfirmChannel, ConnectCallback};
 
 const DEFAULT_MAX_FILES_SIZE_BYTES = 1024 * 1024 * 2; // 2 MB
 const DEFAULT_MAX_BUFFER_TIME_MS = 60 * 1000; // 60 seconds
@@ -153,7 +153,7 @@ class AmqpCacoon {
       // This function is specified in the config
       this
         .pubChannelWrapper = this.connection.createChannel({
-        setup: (channel: Channel) => {
+        setup: (channel: ConfirmChannel) => {
           if (this.onChannelConnect) {
             return this.onChannelConnect(channel);
           } else {
@@ -191,7 +191,7 @@ class AmqpCacoon {
       // Add a setup function that will be called on each connection retry
       // This function is specified in the config
       this.subChannelWrapper = this.connection.createChannel({
-        setup: (channel: Channel) => {
+        setup: (channel: ConfirmChannel) => {
           // `channel` here is a regular amqplib `ConfirmChannel`.
           // Note that `this` here is the channelWrapper instance.
           if (this.onChannelConnect) {

@@ -1,12 +1,13 @@
 import {expect} from 'chai';
 import _ from 'lodash';
 import 'mocha';
+// @ts-ignore
 import simple from 'simple-mock';
 import AmqpCacoon, {
   IAmqpCacoonConfig,
   ChannelWrapper,
   ConsumeMessage,
-  Channel,
+  ConfirmChannel,
   ConsumeBatchMessages,
   ConsumerBatchOptions,
 } from '../../src';
@@ -35,6 +36,7 @@ if (process.env.RABBITMQ_CONNECTION_STRING) {
   _.extend(config.messageBus, defaultMessageBusConfig);
 }
 
+// @ts-ignore
 import log4js from 'log4js';
 
 let logger = log4js.getLogger();
@@ -53,7 +55,7 @@ describe('Amqp Cacoon', () => {
     providers: {
       logger: logger,
     },
-    onChannelConnect: async function (channel: Channel) {
+    onChannelConnect: async function (channel: ConfirmChannel) {
       if (channel) {
         await channel.assertQueue(config.messageBus.testQueue);
         await channel.purgeQueue(config.messageBus.testQueue);
