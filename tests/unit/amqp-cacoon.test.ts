@@ -303,19 +303,18 @@ describe('Amqp Cacoon', () => {
     }
   });
 
-  it('registerConsumerBatch - Batches on time limit', async (done) => {
+  it('registerConsumerBatch - Batches on time limit', async () => {
     try {
       let messageStrings = ['Test1', 'Test2'];
       await testBatchConsume(messageStrings, messageStrings, {
         batching: { maxTimeMs: 200 },
       });
-      done();
     } catch (e) {
-      done(e);
+      throw e;
     }
   });
 
-  it('registerConsumerBatch - Batches on message size', async (done) => {
+  it('registerConsumerBatch - Batches on message size', async () => {
     try {
       // Doesn't get messages after going over size
       await testBatchConsume(['Test1', 'Test2', 'Test3'], ['Test1', 'Test2'], {
@@ -334,9 +333,8 @@ describe('Amqp Cacoon', () => {
           batching: { maxTimeMs: 1000, maxSizeBytes: 1024 * 1024 * 2 },
         }
       );
-      done();
     } catch (e) {
-      done(e);
+      throw e;
     }
   });
 
