@@ -2,7 +2,7 @@ version: '2'
 
 services:
   rabbitmq:
-    image: 'bitnami/rabbitmq:3.8'
+    image: 'bitnami/rabbitmq:3.8.21'
     environment:
       - RABBITMQ_USERNAME=valtech
       - RABBITMQ_PASSWORD=iscool

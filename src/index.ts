@@ -93,8 +93,6 @@ class AmqpCacoon {
     this.onChannelConnect = config.onChannelConnect || null;
     this.onBrokerConnect = config.onBrokerConnect || null;
     this.onBrokerDisconnect = config.onBrokerDisconnect || null;
-
-
   }
 
   /**

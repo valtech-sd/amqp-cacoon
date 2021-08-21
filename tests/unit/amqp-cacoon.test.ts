@@ -1,7 +1,9 @@
-import {expect} from 'chai';
+import { expect } from 'chai';
 import _ from 'lodash';
 import 'mocha';
+
 // @ts-ignore
+
 import simple from 'simple-mock';
 import AmqpCacoon, {
   IAmqpCacoonConfig,
@@ -23,6 +25,7 @@ let defaultMessageBusConfig = {
   // Port
   port: 5672,
 };
+
 const config: any = {
   messageBus: {
     // Queue setup
@@ -60,7 +63,7 @@ describe('Amqp Cacoon', () => {
         await channel.assertQueue(config.messageBus.testQueue);
         await channel.purgeQueue(config.messageBus.testQueue);
       }
-    }
+    },
   };
 
   afterEach(() => {
@@ -75,7 +78,8 @@ describe('Amqp Cacoon', () => {
     let amqpCacoon: any;
     try {
       amqpCacoon = new AmqpCacoon(amqpCacoonConfig);
-      let channel: ChannelWrapper | null = await amqpCacoon.getConsumerChannel();
+      let channel: ChannelWrapper | null =
+        await amqpCacoon.getConsumerChannel();
       expect(channel, 'Is undefined').to.not.be.undefined;
       expect(channel, 'Is null').to.not.be.null;
 
@@ -108,57 +112,56 @@ describe('Amqp Cacoon', () => {
       amqpCacoon = new AmqpCacoon(amqpCacoonConfig);
 
       await new Promise(async (resolve, reject) => {
-          if (!amqpCacoon) {
-            return reject(
-              new Error('Some how amqpCacoon is null. This should not happen')
-            );
-          }
-
-          let resolved = false;
-          await amqpCacoon.registerConsumer(
-            config.messageBus.testQueue,
-            async (channel: ChannelWrapper, msg: ConsumeMessage) => {
-              try {
-                channel.ack(msg);
-                expect(msg.content.toString(), 'Wrong message received').to.equal(
-                  'TestString'
-                );
-                if (!resolved) {
-                  resolved = true;
-                  resolve();
-                }
-              } catch (e) {
-                reject(e);
-              }
-            }
+        if (!amqpCacoon) {
+          return reject(
+            new Error('Somehow amqpCacoon is null. This should not happen')
           );
-
-          // Can we publish before registering consumer?
-          await amqpCacoon.publish(
-            '',
-            config.messageBus.testQueue,
-            Buffer.from('TestString')
-          );
-
-          setTimeout(() => {
-            if (!resolved) {
-              reject(new Error('Message rx: Timed out'));
-              resolved = true;
-            }
-          }, 200);
         }
-      );
+
+        let resolved = false;
+        await amqpCacoon.registerConsumer(
+          config.messageBus.testQueue,
+          async (channel: ChannelWrapper, msg: ConsumeMessage) => {
+            try {
+              channel.ack(msg);
+              expect(msg.content.toString(), 'Wrong message received').to.equal(
+                'TestString'
+              );
+              if (!resolved) {
+                resolved = true;
+                resolve(null);
+              }
+            } catch (e) {
+              reject(e);
+            }
+          }
+        );
+
+        // Can we publish before registering consumer?
+        await amqpCacoon.publish(
+          '',
+          config.messageBus.testQueue,
+          Buffer.from('TestString')
+        );
+
+        setTimeout(() => {
+          if (!resolved) {
+            reject(new Error('Message rx: Timed out'));
+            resolved = true;
+          }
+        }, 200);
+      });
 
       // Add short delay before closing connection
       // For some reason, closing the channel immediately causes issues
-      const delay = (ms: any) => new Promise(resolve => setTimeout(resolve, ms));
+      const delay = (ms: any) =>
+        new Promise((resolve) => setTimeout(resolve, ms));
 
       await delay(1000).then(async () => {
         if (amqpCacoon) {
           await amqpCacoon.close();
         }
       });
-
     } catch (e) {
       if (amqpCacoon) await amqpCacoon.close();
       throw e;
@@ -168,91 +171,87 @@ describe('Amqp Cacoon', () => {
   // For now (until we decide to mock rmq, this is for manual testing)
   // Start and stop rabbit mq to verify that messages sent when
   // connection is down are received on reconnect
-  it.skip('resends messages after disconnect', async () => {
+  it.skip('resends messages after disconnect - run manually', async () => {
     let amqpCacoon: AmqpCacoon | null = null;
 
     try {
       amqpCacoonConfig.onBrokerConnect = () => {
-        console.log("Connection made!")
-      }
+        console.log('Connection made!');
+      };
 
       amqpCacoonConfig.onBrokerDisconnect = () => {
-        console.log("Connection lost!")
-      }
+        console.log('Connection lost!');
+      };
 
       amqpCacoon = new AmqpCacoon(amqpCacoonConfig);
 
       await new Promise(async (resolve, reject) => {
-          if (!amqpCacoon) {
-            return reject(
-              new Error('Some how amqpCacoon is null. This should not happen')
-            );
-          }
-
-          let resolved = false;
-          let numConsumed = 0;
-          let numSent = 0;
-          let numToSend = 6;
-          await amqpCacoon.registerConsumer(
-            config.messageBus.testQueue,
-            async (channel: ChannelWrapper, msg: ConsumeMessage) => {
-              try {
-                channel.ack(msg);
-                console.log("Received message: ", msg.content.toString());
-                numConsumed++;
-                if (numToSend == numConsumed) {
-                  resolved = true;
-                  resolve();
-                }
-              } catch (e) {
-                reject(e);
-              }
-            }
+        if (!amqpCacoon) {
+          return reject(
+            new Error('Some how amqpCacoon is null. This should not happen')
           );
-
-
-          setInterval(async () => {
-            if (amqpCacoon) {
-              if (numSent < numToSend) {
-                let msgContent = "Test message " + numSent;
-                console.log("Sending message: ", msgContent);
-
-                // Do not await successful receipt, event if connection is lost
-                // Keep sending while connection is down
-                amqpCacoon.publish(
-                  '',
-                  config.messageBus.testQueue,
-                  Buffer.from(msgContent)
-                );
-                numSent++;
-
-              } else {
-                // Stop calling this function
-                console.log("I guess we sent them all");
-              }
-            }
-
-          }, 10000);
-
-          setTimeout(() => {
-            if (!resolved) {
-              reject(new Error('Message rx: Timed out'));
-              resolved = true;
-            }
-          }, 100000);
         }
-      );
+
+        let resolved = false;
+        let numConsumed = 0;
+        let numSent = 0;
+        let numToSend = 6;
+        await amqpCacoon.registerConsumer(
+          config.messageBus.testQueue,
+          async (channel: ChannelWrapper, msg: ConsumeMessage) => {
+            try {
+              channel.ack(msg);
+              console.log('Received message: ', msg.content.toString());
+              numConsumed++;
+              if (numToSend == numConsumed) {
+                resolved = true;
+                resolve(null);
+              }
+            } catch (e) {
+              reject(e);
+            }
+          }
+        );
+
+        setInterval(async () => {
+          if (amqpCacoon) {
+            if (numSent < numToSend) {
+              let msgContent = 'Test message ' + numSent;
+              console.log('Sending message: ', msgContent);
+
+              // Do not await successful receipt, event if connection is lost
+              // Keep sending while connection is down
+              await amqpCacoon.publish(
+                '',
+                config.messageBus.testQueue,
+                Buffer.from(msgContent)
+              );
+              numSent++;
+            } else {
+              // Stop calling this function
+              console.log('I guess we sent them all');
+            }
+          }
+        }, 10000);
+
+        setTimeout(() => {
+          if (!resolved) {
+            reject(new Error('Message rx: Timed out'));
+            resolved = true;
+          }
+        }, 100000);
+      });
 
       // Add short delay before closing connection
       // For some reason, closing the channel immediately causes issues
-      const delay = (ms: any) => new Promise(resolve => setTimeout(resolve, ms));
+      const delay = (ms: any) =>
+        new Promise((resolve) => setTimeout(resolve, ms));
 
       await delay(1000).then(async () => {
         if (amqpCacoon) {
           await amqpCacoon.close();
         }
       });
-
     } catch (e) {
       if (amqpCacoon) await amqpCacoon.close();
       throw e;
@@ -304,22 +303,23 @@ describe('Amqp Cacoon', () => {
     }
   });
 
-  it('registerConsumerBatch - Batches on time limit', async () => {
+  it('registerConsumerBatch - Batches on time limit', async (done) => {
     try {
       let messageStrings = ['Test1', 'Test2'];
       await testBatchConsume(messageStrings, messageStrings, {
-        batching: {maxTimeMs: 200},
+        batching: { maxTimeMs: 200 },
       });
+      done();
     } catch (e) {
-      throw e;
+      done(e);
     }
   });
 
-  it('registerConsumerBatch - Batches on message size', async () => {
+  it('registerConsumerBatch - Batches on message size', async (done) => {
     try {
       // Doesn't get messages after going over size
       await testBatchConsume(['Test1', 'Test2', 'Test3'], ['Test1', 'Test2'], {
-        batching: {maxTimeMs: 0, maxSizeBytes: 6},
+        batching: { maxTimeMs: 0, maxSizeBytes: 6 },
       });
 
       // Works on large messages
@@ -331,11 +331,12 @@ describe('Amqp Cacoon', () => {
         [largeMessage, largeMessage, largeMessage],
         [largeMessage, largeMessage],
         {
-          batching: {maxTimeMs: 1000, maxSizeBytes: 1024 * 1024 * 2},
+          batching: { maxTimeMs: 1000, maxSizeBytes: 1024 * 1024 * 2 },
         }
       );
+      done();
     } catch (e) {
-      throw e;
+      done(e);
     }
   });
 
@@ -351,7 +352,7 @@ describe('Amqp Cacoon', () => {
    * 5. Within callback ack all if messages come through.
    * 6. Test message length using rxMessageStrings.length
    * 7. Test message buffer size
-   * 8. Compare rxMessageStrings values to incomming messages
+   * 8. Compare rxMessageStrings values to incoming messages
    * 9. Reject if we timeout
    */
   async function testBatchConsume(
@@ -385,7 +386,7 @@ describe('Amqp Cacoon', () => {
 
         let resolved = false;
         // 4. Register callback with registerConsumerBatch
-        amqpCacoon.registerConsumerBatch(
+        await amqpCacoon.registerConsumerBatch(
           config.messageBus.testQueue,
           async (channel: ChannelWrapper, batch: ConsumeBatchMessages) => {
             try {
@@ -400,8 +401,7 @@ describe('Amqp Cacoon', () => {
                   .map((m) => m.length)
                   .reduce((note, value) => note + value, 0)
               );
-
-              // 8. Compare rxMessageStrings values to incomming messages
+              // 8. Compare rxMessageStrings values to incoming messages
               for (let msg of batch.messages) {
                 expect(
                   rxMessageStrings,
@@ -410,7 +410,7 @@ describe('Amqp Cacoon', () => {
               }
 
               if (!resolved) {
-                resolve();
+                resolve(null);
                 resolved = true;
               }
             } catch (e) {
@@ -421,7 +421,7 @@ describe('Amqp Cacoon', () => {
           },
           consumerOptions
         );
-        // Set timer incase we timeout
+        // Set timer in case we timeout
         setTimeout(() => {
           if (!resolved) {
             // 9. Reject if we timeout
@@ -430,9 +430,9 @@ describe('Amqp Cacoon', () => {
           }
         }, (consumerOptions?.batching?.maxTimeMs || 0) + 100);
       });
-      if (amqpCacoon) amqpCacoon.close();
+      if (amqpCacoon) await amqpCacoon.close();
     } catch (e) {
-      if (amqpCacoon) amqpCacoon.close();
+      if (amqpCacoon) await amqpCacoon.close();
       throw e;
     }
   }
