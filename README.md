@@ -128,7 +128,7 @@ Note:
    If you're publishing to a named Exchange (which is more flexible) then you can still pass a routing key
    but be sure to BIND that exchange to one or more queues based on the routing key so that the exchnage knows
    how to route your messages! Learn more about routing here: https://www.rabbitmq.com/tutorials/tutorial-four-javascript.html
-1. This is the message to publish. Notice is must be a Buffer. 
+1. This is the message to publish. Notice it must be a Buffer. 
 
 > **Note:** Please see **./examples/example-amqp-publish.js** for a complete example.
 
@@ -284,15 +284,17 @@ To run the examples:
   npm i
   ```
 
+1. Make sure that you have an AMQP broker like RabbitMQ running, as noted in the comments at the top of the example files in `examples/src`.
+
 1. Run any one of the specific examples
   ```bash
-  node ./example-amqo-publish.js
+  node ./example-amqp-publish.js
   ```
 
 ## Running Tests for this Repo
 
 Note that all the tests for this REPO are UNIT TESTS that do not require an actual AMQP host to be
-setup. Consequently, the test verify that the AMQP Cacoon wrappers are properly calling the underlying
+setup. Consequently, the tests verify that the AMQP Cacoon wrappers are properly calling the underlying
 AMQPLIP and NODE AMQP MANAGER libraries. For a more "real world" test, see [Run the Examples](#run-the-examples).
 
 1. Install node modules (This also loads local modules from our own repositories)
