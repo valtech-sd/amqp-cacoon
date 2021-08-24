@@ -24,14 +24,28 @@ export default class MessageBatchingManager {
   }
 
   /**
+   * Returns the number of messages in the unackedMessageList
+   * Primarily used for automated testing, but safe to use by others.
+   */
+  getMessageCount(): number {
+    return this.unackedMessageList.length;
+  }
+
+  /**
+   * Returns the size of all the message sin the unackedMessageList
+   * Primarily used for automated testing, but safe to use by others.
+   */
+  getBufferSize(): number {
+    return this.bufferSize;
+  }
+
+  /**
    * resetMessages
    * Reset message list
    * Do this by...
    * 1. Reset unackedMessageList
    * 2. Reset buffer size
    *
-   * @param originalMessage: ConsumeMessage
-   * @param json: object
    */
   resetMessages() {
     // 1. Reset unackedMessageList
@@ -47,7 +61,7 @@ export default class MessageBatchingManager {
    * 1. Push message to list
    * 2. Increment buffer size
    *
-   * @param originalMessage: ConsumeMessage
+   * @param msg
    */
   addMessage(msg: ConsumeMessage) {
     // 1. Push message to list
@@ -81,7 +95,7 @@ export default class MessageBatchingManager {
    * ackMessageList
    * Ack all messages in list
    * Do this by...
-   * 1. Ack the last message using allUpTo argumetn to specify that all messages up to the last should be nacked
+   * 1. Calling ack on each message.
    *
    * @param channel: Channel - Channel
    * @param messageList: Array<ConsumeMessage> - Messages to be acked
@@ -90,8 +104,6 @@ export default class MessageBatchingManager {
     if (this.logger) {
       this.logger.trace(`MessageBatchingManager.ackMessageList: Start`);
     }
-    // 1. Ack the last message using allUpTo argumetn to specify that all messages up to the last should be nacked
-    //channel.ack(messageList[messageList.length - 1], true);
     for (let msg of messageList) {
       channel.ack(msg);
     }
@@ -104,10 +116,11 @@ export default class MessageBatchingManager {
    * nackMessageList
    * Nack all messages in list
    * Do this by...
-   * 1. Nack the last message using the allUpTo argument to specify that all messages up to the last should be nacked
+   * 1. Calling Nack on each message.
    *
    * @param channel: Channel - Channel
    * @param messageList: Array<ConsumeMessage> - Messages to be nacked
+   * @param requeue
    */
   nackMessageList(
     channel: ChannelWrapper,
@@ -117,8 +130,6 @@ export default class MessageBatchingManager {
     if (this.logger) {
       this.logger.trace(`MessageBatchingManager.nackMessageList: Start`);
     }
-    // 1. Nack the last message using the allUpTo argument to specify that all messages up to the last should be nacked
-    //channel.nack(messageList[messageList.length - 1], true, requeue);
     for (let msg of messageList) {
       channel.nack(msg, requeue);
     }
@@ -133,8 +144,7 @@ export default class MessageBatchingManager {
    * Do this by...
    * 1. Finalize message buffer and fetch buffer and unackedMessageList
    * 2. Call handler function (Assume it nacks or acks)
-   * 3. Ack unackedMessageList
-   * 4. If error then nack unackedMessageList. Assume nack never occured if here
+   * 3. If error then nack unackedMessageList. Assume nack never occurred if here
    *
    * @returns void
    */
@@ -165,10 +175,8 @@ export default class MessageBatchingManager {
       };
       await handler(channel, messages);
 
-      // 3. Ack unackedMessageList
-      // this.ackMessageList(channel, unackedMessageList);
     } catch (e) {
-      // 4. If error then nack unackedMessageList
+      // 3. If error then nack unackedMessageList
       if (!this.config.skipNackOnFail && unackedMessageList.length > 0) {
         this.nackMessageList(channel, unackedMessageList);
       }
@@ -179,19 +187,20 @@ export default class MessageBatchingManager {
    * handleMessageBuffering
    * This function handles buffering and sending of messages
    * The rules are as follows.
-   * 1. If buffer size > MAX_FILES_SIZE_BYTES then send the message
-   * 2. If time elapsed since first message in group > MAX_BUFFER_TIME_MS then send grouped messages
+   * 1. If buffer size > MAX_FILES_SIZE_BYTES then send the buffered message
+   * 2. If time elapsed since first message in group > MAX_BUFFER_TIME_MS then send buffered messages
    *
    * Do this by...
-   * 1. Set channel variable for this object. This way we don't have to do an async call elswhere.
+   * 1. Set channel variable for this object. This way we don't have to do an async call elsewhere.
    * 2. Add message to a buffer
    * 3. Check buffer byte length and clear timer and send message if files size > MAX_FILES_SIZE_BYTES
    * 4. Else Setup timer if it is not already setup to send buffered messages
-   * 5. When timer expires, send message
+   * 5. When timer expires, send buffered messages
    *
-   * @param originalMessage: ConsumeMessage - Used for ack and nack of messages
-   * @param transformedMessage: object - Sent in buffered message
    * @returns void
+   * @param channel
+   * @param msg
+   * @param handler
    */
   async handleMessageBuffering(
     channel: ChannelWrapper,
@@ -201,7 +210,7 @@ export default class MessageBatchingManager {
       msg: ConsumeBatchMessages
     ) => Promise<void>
   ) {
-    // 1. Set channel variable for this object. This way we don't have to do an async call elswhere.
+    // 1. Set channel variable for this object. This way we don't have to do an async call elsewhere.
     this.amqpChannel = channel;
     // 2. Add message to a buffer
     this.addMessage(msg);
@@ -218,7 +227,7 @@ export default class MessageBatchingManager {
       // send message
       await this.sendBufferedMessages(this.amqpChannel, handler);
     } else if (this.config.maxTimeMs) {
-      // 4. Else Setup timer if it is not alread setup to send buffered messages
+      // 4. Else Setup timer if it is not already setup to send buffered messages
       if (!this.timerHandle) {
         this.timerHandle = setTimeout(() => {
           // 5. When timer expires, send message. We know amqpChannel cannot be null here

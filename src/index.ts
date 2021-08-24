@@ -1,6 +1,7 @@
 import amqp, {
   ChannelWrapper,
   AmqpConnectionManager,
+  AmqpConnectionManagerOptions,
 } from 'amqp-connection-manager';
 import {ConsumeMessage, Channel, ConfirmChannel, Options} from 'amqplib';
 import {Logger} from 'log4js';
@@ -8,7 +9,7 @@ import MessageBatchingManager from './helpers/message_batching_manager';
 
 type ConnectCallback = (channel: ConfirmChannel) => Promise<any>;
 
-export {ConsumeMessage, ChannelWrapper, Channel, ConfirmChannel, ConnectCallback};
+export {ConsumeMessage, ChannelWrapper, Channel, ConfirmChannel, ConnectCallback, AmqpConnectionManagerOptions};
 
 const DEFAULT_MAX_FILES_SIZE_BYTES = 1024 * 1024 * 2; // 2 MB
 const DEFAULT_MAX_BUFFER_TIME_MS = 60 * 1000; // 60 seconds
@@ -93,8 +94,6 @@ class AmqpCacoon {
     this.onChannelConnect = config.onChannelConnect || null;
     this.onBrokerConnect = config.onBrokerConnect || null;
     this.onBrokerDisconnect = config.onBrokerDisconnect || null;
-
-
   }
 
   /**
@@ -347,9 +346,9 @@ class AmqpCacoon {
       // Actually returns a wrapper
       const channel = await this.getPublishChannel(); // Sets up the publisher channel
 
-      // TODO: Alex: Does the guaranteed publish eliminate the need to handle drain events?
       // There's currently a reported bug in node-amqp-connection-manager saying the lib does
-      // not handle drain events properly...we should fix this.
+      // not handle drain events properly... requires research.
+      // See https://github.com/valtech-sd/amqp-cacoon/issues/20
       await channel.publish(
         exchange,
         routingKey,

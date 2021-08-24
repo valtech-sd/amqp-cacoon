@@ -1,0 +1,19 @@
+{
+  "name": "amqp-cacoon-example",
+  "version": "1.0.0",
+  "description": "An example for using AMQP Cacoon",
+  "main": "",
+  "scripts": {
+    "start": "echo \"Use npm run 'start-consumer' or 'start-publisher'\" && exit 1",
+    "start-consumer": "node src/example-amqp-consumer.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "lodash": "^4.17.15",
+    "log4js": "^6.3.0",
+    "amqp-cacoon": "file:.."
+  },
+  "devDependencies": {},
+  "author": "Valtech: San Diego Engineering Team",
+  "license": "MIT"
+}

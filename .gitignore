@@ -1,1 +1,6 @@
+# exclude node
 node_modules
+
+#excelude build artifacts
+build
+

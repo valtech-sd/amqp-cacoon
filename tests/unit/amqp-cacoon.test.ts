@@ -1,7 +1,10 @@
-import {expect} from 'chai';
-import _ from 'lodash';
+/**
+ * Note, this test-suite should be called with mocha's "--exit" parameter so it stops the process once
+ * all tests run. Otherwise, mocha will wait for all processes to end before exiting.
+ */
+
+import { expect } from 'chai';
 import 'mocha';
-// @ts-ignore
 import simple from 'simple-mock';
 import AmqpCacoon, {
   IAmqpCacoonConfig,
@@ -12,36 +15,30 @@ import AmqpCacoon, {
   ConsumerBatchOptions,
 } from '../../src';
 
-let defaultMessageBusConfig = {
-  // Protocol should be "amqp" or "amqps"
-  protocol: 'amqp',
-  // Username + Password on the RabbitMQ host
-  username: 'valtech',
-  password: 'iscool',
-  // Host
-  host: 'localhost',
-  // Port
-  port: 5672,
-};
+// Change the fullHostName below also if you change any of the config values!
+const fullHostName = 'amqp://valtech:iscool@localhost:5672';
 const config: any = {
   messageBus: {
-    // Queue setup
+    // Protocol should be "amqp" or "amqps"
+    protocol: 'amqp',
+    // Username + Password on the RabbitMQ host
+    username: 'valtech',
+    password: 'iscool',
+    // Host
+    host: 'localhost',
+    // Port
+    port: 5672,
+    // Queue
     testQueue: 'test-queue',
   },
 };
 
-if (process.env.RABBITMQ_CONNECTION_STRING) {
-  config.messageBus.connectionString = process.env.RABBITMQ_CONNECTION_STRING;
-} else {
-  _.extend(config.messageBus, defaultMessageBusConfig);
-}
-
-// @ts-ignore
 import log4js from 'log4js';
+import { ConsumerOptions } from '../../build';
 
 let logger = log4js.getLogger();
 logger = log4js.getLogger('synchronous');
-logger.level = 'trace';
+logger.level = 'off';
 
 describe('Amqp Cacoon', () => {
   let amqpCacoonConfig: IAmqpCacoonConfig = {
@@ -51,7 +48,15 @@ describe('Amqp Cacoon', () => {
     host: config.messageBus.host,
     port: config.messageBus.port,
     connectionString: config.messageBus.connectionString,
-    amqp_opts: {},
+    amqp_opts: {
+      // These are amqp conn manager options
+      heartbeatIntervalInSeconds: 5, // Default
+      reconnectTimeInSeconds: 5, // Default
+      // These should be passed to the underlying amqplib
+      connectionOptions: {
+        ca: [],
+      },
+    },
     providers: {
       logger: logger,
     },
@@ -60,28 +65,43 @@ describe('Amqp Cacoon', () => {
         await channel.assertQueue(config.messageBus.testQueue);
         await channel.purgeQueue(config.messageBus.testQueue);
       }
-    }
+    },
   };
 
   afterEach(() => {
+    // After each test, clear out any MOCKs.
     simple.restore();
   });
+
   // Just make sure it initializes
-  it('Constructor: Initializes', () => {
-    new AmqpCacoon(amqpCacoonConfig);
+  it('Constructor: Initializes and important config items are set properly.', () => {
+    let amqpCacoon = new AmqpCacoon(amqpCacoonConfig);
+    expect(
+      amqpCacoon.fullHostName,
+      'fullHostName was not set property in the underlying library!'
+    ).to.equal(fullHostName);
+    expect(
+      amqpCacoon.amqp_opts,
+      'fullHostName was not set property in the underlying library!'
+    ).to.equal(amqpCacoonConfig.amqp_opts);
   });
 
-  it('getConsumerChannel() - channel is returned', async () => {
+  it('getConsumerChannel() - returns a channelWrapper', async () => {
     let amqpCacoon: any;
     try {
       amqpCacoon = new AmqpCacoon(amqpCacoonConfig);
-      let channel: ChannelWrapper | null = await amqpCacoon.getConsumerChannel();
-      expect(channel, 'Is undefined').to.not.be.undefined;
-      expect(channel, 'Is null').to.not.be.null;
-
-      if (amqpCacoon) amqpCacoon.close();
+      // Mock 'amqp.connect' form the underlying Cacoon (we don't really want to connect or open a channelWrapper
+      // for this test!)
+      simple.mock(amqpCacoon, 'amqp.connect').resolveWith({});
+      // Now get a channel and make sure we get one!
+      let channelWrapper = await amqpCacoon.getConsumerChannel();
+      expect(channelWrapper, 'Is undefined').to.not.be.undefined;
+      expect(channelWrapper, 'Is null').to.not.be.null;
+      // TODO: check for onBrokerConnect & onBrokerDisconnect wired up?
+      // TODO: check for onChannelConnect wired up?
+      // End the test
+      return;
     } catch (e) {
-      if (amqpCacoon) amqpCacoon.close();
       throw e;
     }
   });
@@ -90,350 +110,198 @@ describe('Amqp Cacoon', () => {
     let amqpCacoon: any;
     try {
       amqpCacoon = new AmqpCacoon(amqpCacoonConfig);
-      let channel: ChannelWrapper | null = await amqpCacoon.getPublishChannel();
-      expect(channel, 'Is undefined').to.not.be.undefined;
-      expect(channel, 'Is null').to.not.be.null;
-
-      if (amqpCacoon) amqpCacoon.close();
+      // Mock 'amqp.connect' form the underlying Cacoon (we don't really want to connect or open a channelWrapper
+      // for this test!)
+      simple.mock(amqpCacoon, 'amqp.connect').resolveWith({});
+      // Now get a channel and make sure we get one!
+      let channelWrapper = await amqpCacoon.getPublishChannel();
+      expect(channelWrapper, 'Is undefined').to.not.be.undefined;
+      expect(channelWrapper, 'Is null').to.not.be.null;
+      // TODO: check for onBrokerConnect & onBrokerDisconnect wired up?
+      // TODO: check for onChannelConnect wired up?
+      // End the test
+      return;
     } catch (e) {
-      if (amqpCacoon) amqpCacoon.close();
       throw e;
     }
   });
 
-  it('publish/consume - Published message is received correctly', async () => {
-    let amqpCacoon: AmqpCacoon | null = null;
-
+  it('publish - method calls the right underlying method and passes the correct arguments', async () => {
     try {
-      amqpCacoon = new AmqpCacoon(amqpCacoonConfig);
+      // Instantiate AMQP Cacoon
+      let amqpCacoon = new AmqpCacoon(amqpCacoonConfig);
+      // Mock 'getPublishChannel' form the underlying Cacoon (we don't really want to connect or open a channel
+      // for this test!)
+      simple.mock(amqpCacoon, 'getPublishChannel').resolveWith({});
+      // Get our ChannelWrapper so we can mock some calls
+      let channelWrapper = await amqpCacoon.getPublishChannel();
+      // Mock 'publish' form the underlying AMQP Connection Manager
+      simple.mock(channelWrapper, 'publish').resolveWith(null);
 
-      await new Promise(async (resolve, reject) => {
-          if (!amqpCacoon) {
-            return reject(
-              new Error('Some how amqpCacoon is null. This should not happen')
-            );
-          }
-
-          let resolved = false;
-          await amqpCacoon.registerConsumer(
-            config.messageBus.testQueue,
-            async (channel: ChannelWrapper, msg: ConsumeMessage) => {
-              try {
-                channel.ack(msg);
-                expect(msg.content.toString(), 'Wrong message received').to.equal(
-                  'TestString'
-                );
-                if (!resolved) {
-                  resolved = true;
-                  resolve();
-                }
-              } catch (e) {
-                reject(e);
-              }
-            }
-          );
-
-          // Can we publish before registering consumer?
-          await amqpCacoon.publish(
-            '',
-            config.messageBus.testQueue,
-            Buffer.from('TestString')
-          );
-
-          setTimeout(() => {
-            if (!resolved) {
-              reject(new Error('Message rx: Timed out'));
-              resolved = true;
-            }
-          }, 200);
-        }
-      );
-
-      // Add short delay before closing connection
-      // For some reason, closing the channel immediately causes issues
-      const delay = (ms: any) => new Promise(resolve => setTimeout(resolve, ms));
-
-      await delay(1000).then(async () => {
-        if (amqpCacoon) {
-          await amqpCacoon.close();
-        }
-      });
-
-    } catch (e) {
-      if (amqpCacoon) await amqpCacoon.close();
-      throw e;
-    }
-  });
-
-  // For now (until we decide to mock rmq, this is for manual testing)
-  // Start and stop rabbit mq to verify that messages sent when
-  // connection is down are received on reconnect
-  it.skip('resends messages after disconnect', async () => {
-    let amqpCacoon: AmqpCacoon | null = null;
-
-    try {
-      amqpCacoonConfig.onBrokerConnect = () => {
-        console.log("Connection made!")
-      }
-
-      amqpCacoonConfig.onBrokerDisconnect = () => {
-        console.log("Connection lost!")
-      }
-
-      amqpCacoon = new AmqpCacoon(amqpCacoonConfig);
-
-      await new Promise(async (resolve, reject) => {
-          if (!amqpCacoon) {
-            return reject(
-              new Error('Some how amqpCacoon is null. This should not happen')
-            );
-          }
-
-          let resolved = false;
-          let numConsumed = 0;
-          let numSent = 0;
-          let numToSend = 6;
-          await amqpCacoon.registerConsumer(
-            config.messageBus.testQueue,
-            async (channel: ChannelWrapper, msg: ConsumeMessage) => {
-              try {
-                channel.ack(msg);
-                console.log("Received message: ", msg.content.toString());
-                numConsumed++;
-                if (numToSend == numConsumed) {
-                  resolved = true;
-                  resolve();
-                }
-              } catch (e) {
-                reject(e);
-              }
-            }
-          );
-
-
-          setInterval(async () => {
-            if (amqpCacoon) {
-              if (numSent < numToSend) {
-                let msgContent = "Test message " + numSent;
-                console.log("Sending message: ", msgContent);
-
-                // Do not await successful receipt, event if connection is lost
-                // Keep sending while connection is down
-                amqpCacoon.publish(
-                  '',
-                  config.messageBus.testQueue,
-                  Buffer.from(msgContent)
-                );
-                numSent++;
-
-              } else {
-                // Stop calling this function
-                console.log("I guess we sent them all");
-              }
-            }
-
-          }, 10000);
-
-          setTimeout(() => {
-            if (!resolved) {
-              reject(new Error('Message rx: Timed out'));
-              resolved = true;
-            }
-          }, 100000);
-        }
-      );
-
-      // Add short delay before closing connection
-      // For some reason, closing the channel immediately causes issues
-      const delay = (ms: any) => new Promise(resolve => setTimeout(resolve, ms));
-
-      await delay(1000).then(async () => {
-        if (amqpCacoon) {
-          await amqpCacoon.close();
-        }
-      });
-
-    } catch (e) {
-      if (amqpCacoon) await amqpCacoon.close();
-      throw e;
-    }
-  }).timeout(100000);
-
-  // Skipping this test for now, until we confirm / deny that we will try to listen to drain event
-  it.skip('publish - Drain timeout path', async () => {
-    let amqpCacoon: AmqpCacoon | null = null;
-    try {
-      amqpCacoon = new AmqpCacoon(amqpCacoonConfig);
-
-      let channelStubs = {
-        publish: simple.stub().returnWith(false),
-        once: simple.stub(),
-      };
-      let override: any = amqpCacoon;
-      override.pubChannel = channelStubs;
-
-      // Test drain with timeout
-      try {
-        await amqpCacoon.publish(
-          '',
-          config.messageBus.testQueue,
-          Buffer.from('TestString')
-        );
-        throw new Error(
-          'Failed! amqpCacoon.publish should have been rejected!'
-        );
-      } catch (e) {
-        console.log(e);
-        expect(e.message).to.include('Timeout');
-      }
-
-      // Test drain without timeout
-      channelStubs.once.callbackWith(null);
+      // Setup some data to Publish
+      const exchangeToPub = 'someExchange';
+      const routingKeyToPub = 'someQueueName as Routing Key';
+      const messageToPub = 'someMessage';
+      const bufferToPub = Buffer.from(messageToPub);
+      const optionsToPub = {};
+      // Publish (note, we have a MOCK on .publish so we won't actually publish!)
       await amqpCacoon.publish(
-        '',
-        config.messageBus.testQueue,
-        Buffer.from('TestString')
+        exchangeToPub,
+        routingKeyToPub,
+        bufferToPub,
+        optionsToPub
       );
-
-      expect(channelStubs.publish.called, 'channel.publish was not called').to
-        .be.true;
-      expect(channelStubs.once.called, 'channel.once was not called').to.be
-        .true;
+      // Assert that we called the underlying publish with the right inputs
+      expect(
+        channelWrapper.publish.callCount,
+        'publish method was never called!'
+      ).to.equal(1);
+      expect(
+        channelWrapper.publish.lastCall.args[0],
+        'publish method received mismatched "exchange" parameter!'
+      ).to.equal(exchangeToPub);
+      expect(
+        channelWrapper.publish.lastCall.args[1],
+        'publish method received mismatched "routingKey" parameter!'
+      ).to.equal(routingKeyToPub);
+      expect(
+        channelWrapper.publish.lastCall.args[2],
+        'publish method received mismatched "msgBuffer" parameter!'
+      ).to.equal(bufferToPub);
+      expect(
+        channelWrapper.publish.lastCall.args[3],
+        'publish method received mismatched "options" parameter!'
+      ).to.equal(optionsToPub);
+      // End the test
+      return;
     } catch (e) {
       throw e;
     }
   });
 
-  it('registerConsumerBatch - Batches on time limit', async () => {
+  it('registerConsumer() + registerConsumerPrivate() - calls the underlying classes properly', async () => {
+    let amqpCacoon: any;
+    let testDelayForSimulatedMessageMs = 750;
     try {
-      let messageStrings = ['Test1', 'Test2'];
-      await testBatchConsume(messageStrings, messageStrings, {
-        batching: {maxTimeMs: 200},
-      });
-    } catch (e) {
-      throw e;
-    }
-  });
-
-  it('registerConsumerBatch - Batches on message size', async () => {
-    try {
-      // Doesn't get messages after going over size
-      await testBatchConsume(['Test1', 'Test2', 'Test3'], ['Test1', 'Test2'], {
-        batching: {maxTimeMs: 0, maxSizeBytes: 6},
-      });
-
-      // Works on large messages
-      let largeMessage = '';
-      for (let i = 0; i < 1024 * 1024; i++) {
-        largeMessage += 'a';
-      }
-      await testBatchConsume(
-        [largeMessage, largeMessage, largeMessage],
-        [largeMessage, largeMessage],
-        {
-          batching: {maxTimeMs: 1000, maxSizeBytes: 1024 * 1024 * 2},
-        }
-      );
-    } catch (e) {
-      throw e;
-    }
-  });
-
-  /**
-   * testBatchConsume
-   * This is used by other tests to test the registerConsumerBatch function
-   *
-   * Does this by
-   * 1. Setup amqp
-   * 2. Purge queue to make sure other tests are not messing us up
-   * 3. Publish all txMessageStrings to bus
-   * 4. Register callback with registerConsumerBatch
-   * 5. Within callback ack all if messages come through.
-   * 6. Test message length using rxMessageStrings.length
-   * 7. Test message buffer size
-   * 8. Compare rxMessageStrings values to incomming messages
-   * 9. Reject if we timeout
-   */
-  async function testBatchConsume(
-    txMessageStrings: Array<string>,
-    rxMessageStrings: Array<string>,
-    consumerOptions: ConsumerBatchOptions
-  ) {
-    let amqpCacoon: AmqpCacoon | null = null;
-    try {
-      // 1. Setup amqp
       amqpCacoon = new AmqpCacoon(amqpCacoonConfig);
-      let channel: ChannelWrapper | null = await amqpCacoon.getPublishChannel();
-      // if (channel) await channel.assertQueue(config.messageBus.testQueue);
-      // 2. Purge queue to make sure other tests are not messing us up
-      // await channel.purgeQueue(config.messageBus.testQueue);
-
-      await new Promise(async (resolve, reject) => {
-        if (!amqpCacoon) {
-          return reject(
-            new Error('Some how amqpCacoon is null. This should not happen')
-          );
-        }
-        // 3. Publish all txMessageStrings to bus
-        for (let msg of txMessageStrings) {
-          await amqpCacoon.publish(
-            '',
-            config.messageBus.testQueue,
-            Buffer.from(msg)
-          );
-        }
-
-        let resolved = false;
-        // 4. Register callback with registerConsumerBatch
-        amqpCacoon.registerConsumerBatch(
-          config.messageBus.testQueue,
-          async (channel: ChannelWrapper, batch: ConsumeBatchMessages) => {
-            try {
-              // 5. Within callback ack all if messages come through.
-              batch.ackAll();
-              // 6. Test message length using rxMessageStrings.length
-              expect(batch.messages).to.have.length;
-              expect(batch.messages.length).to.equal(rxMessageStrings.length);
-              // 7. Test message buffer size
-              expect(batch.totalSizeInBytes).to.equal(
-                rxMessageStrings // Sum length of all string in array
-                  .map((m) => m.length)
-                  .reduce((note, value) => note + value, 0)
-              );
-
-              // 8. Compare rxMessageStrings values to incomming messages
-              for (let msg of batch.messages) {
-                expect(
-                  rxMessageStrings,
-                  'Message String did not match'
-                ).to.includes(msg.content.toString());
-              }
-
-              if (!resolved) {
-                resolve();
-                resolved = true;
-              }
-            } catch (e) {
-              if (!resolved) {
-                reject(e);
-              }
-            }
-          },
-          consumerOptions
-        );
-        // Set timer incase we timeout
-        setTimeout(() => {
-          if (!resolved) {
-            // 9. Reject if we timeout
-            reject(new Error('Message rx: Timed out'));
-            resolved = true;
-          }
-        }, (consumerOptions?.batching?.maxTimeMs || 0) + 100);
-      });
-      if (amqpCacoon) amqpCacoon.close();
+      // Mock 'amqp.connect' form the underlying Cacoon (we don't really want to connect or open a channelWrapper
+      // for this test!)
+      simple.mock(amqpCacoon, 'amqp.connect').resolveWith({});
+      // Now get a channel and make sure we get one!
+      let channelWrapper = await amqpCacoon.getConsumerChannel();
+      expect(channelWrapper, 'Is undefined').to.not.be.undefined;
+      expect(channelWrapper, 'Is null').to.not.be.null;
+      // Dummy consumer options, not particularly important, just valid type!
+      let consumerOptions: ConsumerOptions = {
+        consumerTag: '',
+        noLocal: false,
+        noAck: false,
+        exclusive: false,
+        priority: 1,
+        arguments: '',
+      };
+      // Prepare a DUMMY handler to receive "new" messages
+      let handler = async (
+        channel: ChannelWrapper,
+        msg: ConsumeBatchMessages
+      ) => {
+        await Promise.resolve();
+      };
+      // MOCK amqpCacoon.registerConsumerPrivate since that's as deep as we can go before
+      // going inside AMQP Connection Manager or AMQPLIB which we're not testing
+      simple.mock(amqpCacoon, 'registerConsumerPrivate').callOriginal();
+      // MOCK channel.addSetup since that runs, connects to AMQP, then makes a callback to our consumer!
+      // Which we'll just MOCK
+      simple.mock(channelWrapper, 'addSetup').resolveWith(channelWrapper);
+      // Setup the name for a queue. Not important, just needs to be a string
+      const queue = 'someQueue';
+      // Now register the consumer
+      await amqpCacoon.registerConsumer(queue, handler, consumerOptions);
+      // Check to make addSetup was called
+      expect(
+        channelWrapper.addSetup.callCount,
+        'addSetup was not called!'
+      ).to.equal(1);
+      // Let's check that 'registerConsumerPrivate' was passed the right things
+      expect(
+        amqpCacoon.registerConsumerPrivate.lastCall.args[0],
+        'consume mismatch on "queue" argument'
+      ).to.equal(queue);
+      expect(
+        amqpCacoon.registerConsumerPrivate.lastCall.args[2],
+        'consume mismatch on "options" argument'
+      ).to.equal(consumerOptions);
+      // End the test
+      return;
     } catch (e) {
-      if (amqpCacoon) amqpCacoon.close();
       throw e;
     }
-  }
+  });
+
+  it('registerConsumerBatch() + registerConsumerPrivate() - calls the underlying classes properly', async () => {
+    let amqpCacoon: any;
+    let testDelayForSimulatedMessageMs = 750;
+    try {
+      amqpCacoon = new AmqpCacoon(amqpCacoonConfig);
+      // Mock 'amqp.connect' form the underlying Cacoon (we don't really want to connect or open a channelWrapper
+      // for this test!)
+      simple.mock(amqpCacoon, 'amqp.connect').resolveWith({});
+      // Now get a channel and make sure we get one!
+      let channelWrapper = await amqpCacoon.getConsumerChannel();
+      expect(channelWrapper, 'Is undefined').to.not.be.undefined;
+      expect(channelWrapper, 'Is null').to.not.be.null;
+      // Dummy consumer options, not particularly important, just valid type!
+      let consumerBatchOptions: ConsumerBatchOptions = {
+        consumerTag: '',
+        noLocal: false,
+        noAck: false,
+        exclusive: false,
+        priority: 1,
+        arguments: '',
+        batching: {
+          maxSizeBytes: 0,
+          maxTimeMs: 0,
+        },
+      };
+      // Prepare a DUMMY handler to receive "new" messages
+      let handler = async (
+        channel: ChannelWrapper,
+        msg: ConsumeBatchMessages
+      ) => {
+        await Promise.resolve();
+      };
+      // MOCK amqpCacoon.registerConsumerPrivate since that's as deep as we can go before
+      // going inside AMQP Connection Manager or AMQPLIB which we're not testing
+      simple.mock(amqpCacoon, 'registerConsumerPrivate').callOriginal();
+      // MOCK channel.addSetup since that runs, connects to AMQP, then makes a callback to our consumer!
+      // Which we'll just MOCK
+      simple.mock(channelWrapper, 'addSetup').resolveWith(channelWrapper);
+      // Setup the name for a queue. Not important, just needs to be a string
+      const queue = 'someQueue';
+      // Now register the consumer
+      await amqpCacoon.registerConsumerBatch(
+        queue,
+        handler,
+        consumerBatchOptions
+      );
+      // Check to make addSetup was called
+      expect(
+        channelWrapper.addSetup.callCount,
+        'addSetup was not called!'
+      ).to.equal(1);
+      // Let's check that 'registerConsumerPrivate' was passed the right things
+      expect(
+        amqpCacoon.registerConsumerPrivate.lastCall.args[0],
+        'consume mismatch on "queue" argument'
+      ).to.equal(queue);
+      expect(
+        amqpCacoon.registerConsumerPrivate.lastCall.args[2],
+        'consume mismatch on "options" argument'
+      ).to.equal(consumerBatchOptions);
+      // End the test
+      return;
+    } catch (e) {
+      throw e;
+    }
+  });
 });
