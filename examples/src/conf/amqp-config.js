@@ -14,7 +14,7 @@ const amqpConfig = {
   host: 'localhost',
   // Port AMQPS=5671, AMQP=5672
   port: protocol === 'amqps' ? 5671 : 5672,
-  // AMQP Options
+  // AMQP Options which should conform to <AmqpConnectionManagerOptions>
   amqp_opts: {
     // Pass options to node amqp connection manager (a wrapper around AMQPLIB)
     // See connect(urls, options) in https://www.npmjs.com/package/amqp-connection-manager
@@ -40,10 +40,8 @@ const amqpConfig = {
     },
   },
   // Queues + Exchanges that we'll be using for the examples
-  exampleQueue: 'example-input-queue',
-  exampleExchange: 'example-input-exchange',
-  exampleQueueOutput: 'example-output-queue',
-  exampleExchangeOutput: 'example-output-exchange',
+  exampleQueue: 'example-queue',
+  exampleExchange: 'example-exchange',
 };
 
 module.exports = amqpConfig;

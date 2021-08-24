@@ -1,7 +1,9 @@
 /**
  * example-amqp-consumer
  *
- * This example demonstrates how to use AMQP Cacoon to start up an AMQP Consumer.
+ * This example demonstrates how to use AMQP Cacoon to start up an AMQP Consumer, using
+ * a BATCH. This means that your consumer callback will not fire for EACH messagge, but will
+ * instead fire in groups that you determine either by time or bytes!
  *
  * DEPENDENCIES:*
  * - AMQP Cacoon - is a package that manages connections to RabbitMQ.
@@ -88,18 +90,31 @@ async function main() {
   await amqpCacoon.getConsumerChannel();
 
   // Register a consumer to consume single message at a time
-  await amqpCacoon.registerConsumer(
+  await amqpCacoon.registerConsumerBatch(
     amqpConfig.exampleQueue,
-    async (channelWrapper, msg) => {
+    async (channelWrapper, msgBatch) => {
       try {
-        logger.info(`Message content: ${msg.content.toString()}`);
+        logger.info(`Message Batch Count: ${msgBatch.messages.length}`);
         // ... Do other processing here
-        channelWrapper.ack(msg); // To ack a messages
+        // Loop through the batch and handle each as needed
+        for (let msg of msgBatch.messages) {
+          logger.info(`Message content: ${msg.content.toString()}`);
+        }
+        // Once processing is done, ACK them all!
+        // This requires a bit of planning on your application, of course, to avoid duplicate processing!
+        msgBatch.ackAll();
       } catch (e) {
-        // Some error happened in our handling of the message.
-        // The bet practice is to NACK the message so that some other process retries!
-        channelWrapper.nack(msg); // To nack a messages we could not handle (by default, will requeue)
+        // Some error happened in our handling of the message batch.
+        // The bet practice is to NACK all the messages so that some other process retries them!
+        // This requires a bit of planning on your application, of course, to avoid duplicate processing!
+        msgBatch.nackAll();
       }
+    },
+    {
+      batching: {
+        maxSizeBytes: 1000, // A total of 1,000 Bytes will force consume
+        maxTimeMs: 5000, // 5000ms = 5s elapsed will for a consume
+      },
     }
   );
 }
@@ -116,7 +131,7 @@ main()
       `You should now have an Exchange "${amqpConfig.exampleExchange}" & Queue "${amqpConfig.exampleQueue}" on your AMQP host.`
     );
     console.info(
-      `Publish messages to either the Exchange or Queue to consume the messages by this consumer! CTRL+C will quit this app.`
+      `Publish messages to either the Exchange or Queue to consume the messages by this consumer - EVERY FEW SECONDS! CTRL+C will quit this app.`
     );
     logger.info(
       `An easy way to send messages is to open one of the example order files, then paste the contents into the RabbitMQ console. Under QUEUES, click into "${amqpConfig.exampleQueue}" and notice there is a publish message section. Paste the contents of one of the order files in there and click PUBLISH MESSAGE.`

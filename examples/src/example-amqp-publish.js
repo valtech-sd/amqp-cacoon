@@ -1,7 +1,8 @@
 /**
- * example-amqp-consumer
+ * example-amqp-publish
  *
- * This example demonstrates how to use AMQP Cacoon to start up an AMQP Consumer.
+ * This example demonstrates how to use AMQP Cacoon to start up a connection to an AMQP host and
+ * publish a message.
  *
  * DEPENDENCIES:*
  * - AMQP Cacoon - is a package that manages connections to RabbitMQ.
@@ -85,41 +86,33 @@ let amqpCacoon = new AmqpCacoon({
 
 async function main() {
   // Connects and sets up a subscription channelWrapper
-  await amqpCacoon.getConsumerChannel();
+  await amqpCacoon.getPublishChannel();
 
-  // Register a consumer to consume single message at a time
-  await amqpCacoon.registerConsumer(
-    amqpConfig.exampleQueue,
-    async (channelWrapper, msg) => {
-      try {
-        logger.info(`Message content: ${msg.content.toString()}`);
-        // ... Do other processing here
-        channelWrapper.ack(msg); // To ack a messages
-      } catch (e) {
-        // Some error happened in our handling of the message.
-        // The bet practice is to NACK the message so that some other process retries!
-        channelWrapper.nack(msg); // To nack a messages we could not handle (by default, will requeue)
-      }
-    }
+  // Create the message as a Buffer (since that's required by the underlying libraries)
+  const messageAsBuffer = Buffer.from(`Hi. Today is ${new Date().toString()}`);
+
+  // Publish
+  await amqpCacoon.publish(
+    amqpConfig.exampleExchange,
+    '',
+    messageAsBuffer
   );
+
+  // Close the connection
+  amqpCacoon.close();
 }
 
 // Run the Example!
-logger.info(
-  `About to register a consumer for your AMQP host "${amqpConfig.host}"`
-);
+logger.info(`About to send to your AMQP host "${amqpConfig.host}"`);
 
 main()
   .then(() => {
     // Ok, we should have a consumer ready!
     console.info(
-      `You should now have an Exchange "${amqpConfig.exampleExchange}" & Queue "${amqpConfig.exampleQueue}" on your AMQP host.`
-    );
-    console.info(
-      `Publish messages to either the Exchange or Queue to consume the messages by this consumer! CTRL+C will quit this app.`
+      `You should see a message in the Queue "${amqpConfig.exampleQueue}" on your AMQP host.`
     );
     logger.info(
-      `An easy way to send messages is to open one of the example order files, then paste the contents into the RabbitMQ console. Under QUEUES, click into "${amqpConfig.exampleQueue}" and notice there is a publish message section. Paste the contents of one of the order files in there and click PUBLISH MESSAGE.`
+      `An easy way to see messages is to open the RabbitMQ console. Under QUEUES, click into "${amqpConfig.exampleQueue}" and notice there is a GET MESSAGES section. Click that to pull out any messages in the queue.`
     );
   })
   .catch((e) => {

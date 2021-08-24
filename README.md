@@ -24,6 +24,20 @@ AMQP Cacoon, in combination with AMQP Connection Manager:
 - guarantees receipt of published messages and provides wrappers around potentially non-persistent channels.
 - allows consuming single or a batch of messages.
 
+## Dependencies
+
+This version of AMQP Cacoon has been tested with:
+
+* NodeJS v16
+  https://nodejs.org/en/about/releases/
+* AMQP Connection Manager v3.2
+  https://github.com/jwalton/node-amqp-connection-manager
+* AMQPLIB v0.8
+  http://www.squaremobius.net/amqp.node/
+  
+It is possible the package functions correctly with older versions of node and other dependencies, though these might
+be untested.
+
 ## Simple Usage
 
 ### Connect
@@ -53,14 +67,38 @@ let amqpCacoon = new AmqpCacoon({
   password: config.messageBus.password,
   host: config.messageBus.host,
   port: config.messageBus.port,
-  amqp_opts: {},
+  // AMQP Options which should conform to <AmqpConnectionManagerOptions>
+  amqp_opts: {
+    // Pass options to node amqp connection manager (a wrapper around AMQPLIB)
+    // See connect(urls, options) in https://www.npmjs.com/package/amqp-connection-manager
+    heartbeatIntervalInSeconds: 5, // Default
+    reconnectTimeInSeconds: 5, // Default
+
+    // Pass options into the underlying AMQPLIB.
+    // See AMQPLIB SocketOptions https://www.squaremobius.net/amqp.node/channel_api.html#connect
+    connectionOptions: {
+      // If using AMQPS, we need to pass the contents of your CA file as a buffer into the broker host via amqp_opts.
+      // This is facilitated for you here. Just copy your CA CERT file to the same location as this config file
+      // then edit the secrets.json file to enter the NAME of your CA CERT file! Don't forget to set 'amqps' and
+      // 'port' to the corresponding AMQPS values also in this configuration!
+      // See https://www.squaremobius.net/amqp.node/ssl.html for more details.
+      ca:
+        config.messageBus.port === 'amqps'
+          ? [
+            fs.readFileSync(
+              __dirname + '/' + secrets.amqpCACertName || 'ca_certificate.pem'
+            ),
+          ]
+          : null,
+    },
+  },
   providers: {
     logger: logger,
   },
 });
 ```
 
-> **Note:** See the [RabbitMQ Setup](#rabbitmq-setup) section below for how to setup Exchanges and Queues once your
+> **Note:** See the [RabbitMQ Setup](#rabbitmq-setup) section below for how to set up Exchanges and Queues once your
 > connection is established.
 
 ### Publishing Messages
@@ -92,6 +130,8 @@ Note:
    how to route your messages! Learn more about routing here: https://www.rabbitmq.com/tutorials/tutorial-four-javascript.html
 1. This is the message to publish. Notice is must be a Buffer. 
 
+> **Note:** Please see **./examples/example-amqp-publish.js** for a complete example.
+
 ### Consume Single Message
 
 This is an example of how to consume a single message.
@@ -116,6 +156,8 @@ amqpCacoon.registerConsumer(
   }
 );
 ```
+
+> **Note:** Please see **./examples/example-amqp-consumer.js** for a complete example.
 
 ### Consume Message Batch
 
@@ -145,11 +187,14 @@ amqpCacoon.registerConsumerBatch(
 );
 ```
 
+> **Note:** Please see **./examples/example-amqp-consumer-batch.js** for a complete example.
+
 Note that in practice, all messages are fetched by AMQP Cacoon from the broker as soon as they're released by the broker. 
 However, AMQP Cacoon batches the contents until the time or data limit is reached, then your callback is handed over 
 the messages for processing. Note that AMQP Cacoon will not ACK nor NACK the messages until your callback decides! So,
-you'll see the messages accumuate in RabbitMQ until your callback is called, then batches will be removed from RMQ
-as you ACK them.
+you'll see the messages accumulate in RabbitMQ until your callback is called, then batches will be removed from RMQ
+as you ACK them. The best practice is to write your application to either ACK or NACK all the messages in a batch, 
+however, it is possible to ACK, NACK individual messages (though that is not demonstrated here.)
 
 ## Dealing With Channels via ChannelWrapper
 
@@ -227,21 +272,29 @@ Note that in both examples:
 1. You then use that channel to perform `assertQueue()`, `assertExhange()`, `bindQueue()` and other setup
    operations.
 
+## Run the Examples
+
+The directory **./examples/src** contains several examples demonstrating the features of AMQP Cacoon.
+
+To run the examples:
+
+1. Install node modules
+  ```bash
+  cd ./examples
+  npm i
+  ```
+
+1. Run any one of the specific examples
+  ```bash
+  node ./example-amqo-publish.js
+  ```
+
 ## Running Tests for this Repo
 
-### Requirements to run Tests
+Note that all the tests for this REPO are UNIT TESTS that do not require an actual AMQP host to be
+setup. Consequently, the test verify that the AMQP Cacoon wrappers are properly calling the underlying
+AMQPLIP and NODE AMQP MANAGER libraries. For a more "real world" test, see [Run the Examples](#run-the-examples).
 
-1. docker w docker compose
-
-If using macos `brew cask install docker` should install both docker and docker-compose.
-
-### Running Tests
-
-1. Start docker-compose - This starts RabbitMq
-
-   ```bash
-   docker-compose up -d
-   ```
 1. Install node modules (This also loads local modules from our own repositories)
 
    ```bash
@@ -255,11 +308,7 @@ If using macos `brew cask install docker` should install both docker and docker-
 
 ## Roadmap
 
-- TODO: Can we make it so that the tests do not need an actual RMQ? We're not testing either underlying library, only our wrapping of them. We should be able to MOCK that.
-- TODO: After we eliminate the actual RMQ dependency for tests, update CCI to remove that.
-- TODO: After we eliminate the actual RMQ dependency for tests, update the readme for "real server testing", which should make a reference to our other more feature rich repo.
-- TODO: Add examples of publish, batch consume (those too should reference our RMQ Docker for better "real host" testing.)
-- TODO: Reference the examples directory, including how to provide secrets and a TLS cert.
+- TODO: Add an example of ConsumeBatch where individual messages are ACK/NACK.
 - PENDING: Timeout if drain event does not occur after some amount of time when channel is not ready to receive a 
   publish. As of 09/2020, the publish-on-drain functionality has been removed, as `node-amqp-manager` does not support 
   it at this time (pending a bugfix?). This requires further research and testing. See https://github.com/valtech-sd/amqp-cacoon/issues/20.

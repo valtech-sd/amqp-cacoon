@@ -16,7 +16,7 @@
     "test": "mocha -r ts-node/register ./tests/**/*.test.ts"
   },
   "dependencies": {
-    "amqp-connection-manager": "^3.2.2",
+    "amqp-connection-manager": "^3.2.3",
     "amqplib": "^0.8.0",
     "lodash": "^4.17.21",
     "log4js": "^6.3.0"
@@ -24,7 +24,7 @@
   "license": "MIT",
   "devDependencies": {
     "@types/amqp-connection-manager": "^2.0.12",
-    "@types/amqplib": "^0.8.1",
+    "@types/amqplib": "^0.8.2",
     "@types/chai": "^4.2.21",
     "@types/lodash": "^4.14.172",
     "@types/mocha": "^9.0.0",
