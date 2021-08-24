@@ -13,7 +13,7 @@
   },
   "scripts": {
     "build": "rimraf ./build && tsc",
-    "test": "mocha -r ts-node/register ./tests/**/*.test.ts"
+    "test": "rimraf ./build && tsc && mocha --exit -r ts-node/register ./tests/**/*.test.ts"
   },
   "dependencies": {
     "amqp-connection-manager": "^3.2.3",

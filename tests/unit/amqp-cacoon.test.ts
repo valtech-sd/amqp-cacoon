@@ -1,8 +1,10 @@
+/**
+ * Note, this test-suite should be called with mocha's "--exit" parameter so it stops the process once
+ * all tests run. Otherwise, mocha will wait for all processes to end before exiting.
+ */
+
 import { expect } from 'chai';
 import 'mocha';
-
-// @ts-ignore
-
 import simple from 'simple-mock';
 import AmqpCacoon, {
   IAmqpCacoonConfig,
@@ -31,7 +33,6 @@ const config: any = {
   },
 };
 
-// @ts-ignore
 import log4js from 'log4js';
 import { ConsumerOptions } from '../../build';
 
@@ -98,7 +99,6 @@ describe('Amqp Cacoon', () => {
       expect(channelWrapper, 'Is null').to.not.be.null;
       // TODO: check for onBrokerConnect & onBrokerDisconnect wired up?
       // TODO: check for onChannelConnect wired up?
-      amqpCacoon.close();
       // End the test
       return;
     } catch (e) {
@@ -119,7 +119,6 @@ describe('Amqp Cacoon', () => {
       expect(channelWrapper, 'Is null').to.not.be.null;
       // TODO: check for onBrokerConnect & onBrokerDisconnect wired up?
       // TODO: check for onChannelConnect wired up?
-      await amqpCacoon.close();
       // End the test
       return;
     } catch (e) {
@@ -173,8 +172,6 @@ describe('Amqp Cacoon', () => {
         channelWrapper.publish.lastCall.args[3],
         'publish method received mismatched "options" parameter!'
       ).to.equal(optionsToPub);
-      // Close AMQP Cacoon
-      await amqpCacoon.close();
       // End the test
       return;
     } catch (e) {
@@ -234,8 +231,6 @@ describe('Amqp Cacoon', () => {
         amqpCacoon.registerConsumerPrivate.lastCall.args[2],
         'consume mismatch on "options" argument'
       ).to.equal(consumerOptions);
-      // Close AMOP Cacoon
-      await amqpCacoon.close();
       // End the test
       return;
     } catch (e) {
@@ -303,8 +298,6 @@ describe('Amqp Cacoon', () => {
         amqpCacoon.registerConsumerPrivate.lastCall.args[2],
         'consume mismatch on "options" argument'
       ).to.equal(consumerBatchOptions);
-      // Close AMOP Cacoon
-      await amqpCacoon.close();
       // End the test
       return;
     } catch (e) {
