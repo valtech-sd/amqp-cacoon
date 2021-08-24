@@ -159,7 +159,7 @@ describe('Message Batching Manager', () => {
       expect(channelWrapper.ack.calls[i].args[0]).to.equal(aMessageList[i]);
     }
     // Close AMOP Cacoon
-    amqpCacoon.close();
+    await amqpCacoon.close();
     // End the test
     return;
   });
@@ -202,7 +202,7 @@ describe('Message Batching Manager', () => {
       expect(channelWrapper.nack.calls[i].args[0]).to.equal(aMessageList[i]);
     }
     // Close AMOP Cacoon
-    amqpCacoon.close();
+    await amqpCacoon.close();
     // End the test
     return;
   });
@@ -316,7 +316,7 @@ describe('Message Batching Manager', () => {
       'sub handler called with bad argument "messages.messages"'
     ).to.equal(messageCount);
     // Close AMOP Cacoon
-    amqpCacoon.close();
+    await amqpCacoon.close();
     // Exit the test
     return;
   });
@@ -415,7 +415,7 @@ describe('Message Batching Manager', () => {
       'Buffer size mismatch.'
     ).to.equal(0);
     // Close AMOP Cacoon
-    amqpCacoon.close();
+    await amqpCacoon.close();
     // Exit the test
     return;
   });
@@ -487,7 +487,7 @@ describe('Message Batching Manager', () => {
       'Buffer size mismatch.'
     ).to.equal(0);
     // Close AMOP Cacoon
-    amqpCacoon.close();
+    await amqpCacoon.close();
     // Exit the test
     return;
   });
