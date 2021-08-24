@@ -158,6 +158,8 @@ describe('Message Batching Manager', () => {
     for (let i = 0; i < aMessageList.length; i++) {
       expect(channelWrapper.ack.calls[i].args[0]).to.equal(aMessageList[i]);
     }
+    // Close AMOP Cacoon
+    amqpCacoon.close();
     // End the test
     return;
   });
@@ -199,6 +201,8 @@ describe('Message Batching Manager', () => {
     for (let i = 0; i < aMessageList.length; i++) {
       expect(channelWrapper.nack.calls[i].args[0]).to.equal(aMessageList[i]);
     }
+    // Close AMOP Cacoon
+    amqpCacoon.close();
     // End the test
     return;
   });
@@ -311,6 +315,9 @@ describe('Message Batching Manager', () => {
       handler.lastCall.args[1].messages.length,
       'sub handler called with bad argument "messages.messages"'
     ).to.equal(messageCount);
+    // Close AMOP Cacoon
+    amqpCacoon.close();
+    // Exit the test
     return;
   });
 
@@ -407,6 +414,9 @@ describe('Message Batching Manager', () => {
       messageBatchingHandler.getBufferSize(),
       'Buffer size mismatch.'
     ).to.equal(0);
+    // Close AMOP Cacoon
+    amqpCacoon.close();
+    // Exit the test
     return;
   });
 
@@ -476,6 +486,9 @@ describe('Message Batching Manager', () => {
       messageBatchingHandler.getBufferSize(),
       'Buffer size mismatch.'
     ).to.equal(0);
+    // Close AMOP Cacoon
+    amqpCacoon.close();
+    // Exit the test
     return;
   });
 });

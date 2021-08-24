@@ -98,6 +98,7 @@ describe('Amqp Cacoon', () => {
       expect(channelWrapper, 'Is null').to.not.be.null;
       // TODO: check for onBrokerConnect & onBrokerDisconnect wired up?
       // TODO: check for onChannelConnect wired up?
+      amqpCacoon.close();
       // End the test
       return;
     } catch (e) {
@@ -118,6 +119,7 @@ describe('Amqp Cacoon', () => {
       expect(channelWrapper, 'Is null').to.not.be.null;
       // TODO: check for onBrokerConnect & onBrokerDisconnect wired up?
       // TODO: check for onChannelConnect wired up?
+      amqpCacoon.close();
       // End the test
       return;
     } catch (e) {
@@ -171,6 +173,8 @@ describe('Amqp Cacoon', () => {
         channelWrapper.publish.lastCall.args[3],
         'publish method received mismatched "options" parameter!'
       ).to.equal(optionsToPub);
+      // Close AMQP Cacoon
+      amqpCacoon.close();
       // End the test
       return;
     } catch (e) {
@@ -230,6 +234,8 @@ describe('Amqp Cacoon', () => {
         amqpCacoon.registerConsumerPrivate.lastCall.args[2],
         'consume mismatch on "options" argument'
       ).to.equal(consumerOptions);
+      // Close AMOP Cacoon
+      amqpCacoon.close();
       // End the test
       return;
     } catch (e) {
@@ -297,6 +303,8 @@ describe('Amqp Cacoon', () => {
         amqpCacoon.registerConsumerPrivate.lastCall.args[2],
         'consume mismatch on "options" argument'
       ).to.equal(consumerBatchOptions);
+      // Close AMOP Cacoon
+      amqpCacoon.close();
       // End the test
       return;
     } catch (e) {
