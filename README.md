@@ -308,7 +308,7 @@ AMQPLIP and NODE AMQP MANAGER libraries. For a more "real world" test, see [Run 
    npm run test
    ```
 
-## Roadmap
+## Roadmap 
 
 - TODO: Add an example of ConsumeBatch where individual messages are ACK/NACK.
 - PENDING: Timeout if drain event does not occur after some amount of time when channel is not ready to receive a 
