@@ -47,6 +47,16 @@ let amqpCacoon = new AmqpCacoon({
   providers: {
     logger: logger,
   },
+  onBrokerConnect: async (connection, url) => {
+    // This is an example "Connect" event fired off by AMQP Connection Manager
+    logger.debug(
+      `Connected to broker: "${amqpConfig.host}" on port ${amqpConfig.port} over "${amqpConfig.protocol}".`
+    );
+  },
+  onBrokerDisconnect: async (err) => {
+    // This is an example "Disconnect" event fired off by AMQP Connection Manager
+    logger.error(`Broker disconnected with error "${err.message}"`);
+  },
   // Important - onChannelConnect will ensure a certain configuration exists in RMQ.
   // This might not be needed in environments where RMQ is setup by some other process!
   onChannelConnect: async (channel) => {
@@ -92,11 +102,7 @@ async function main() {
   const messageAsBuffer = Buffer.from(`Hi. Today is ${new Date().toString()}`);
 
   // Publish
-  await amqpCacoon.publish(
-    amqpConfig.exampleExchange,
-    '',
-    messageAsBuffer
-  );
+  await amqpCacoon.publish(amqpConfig.exampleExchange, '', messageAsBuffer);
 
   // Close the connection
   amqpCacoon.close();
