@@ -3,13 +3,30 @@ import amqp, {
   AmqpConnectionManager,
   AmqpConnectionManagerOptions,
 } from 'amqp-connection-manager';
-import {ConsumeMessage, Channel, ConfirmChannel, Options} from 'amqplib';
-import {Logger} from 'log4js';
+import {
+  ConsumeMessage,
+  Channel,
+  ConfirmChannel,
+  Options,
+  Connection,
+} from 'amqplib';
+import { Logger } from 'log4js';
 import MessageBatchingManager from './helpers/message_batching_manager';
 
 type ConnectCallback = (channel: ConfirmChannel) => Promise<any>;
+type BrokerConnectCallback = (connection: Connection, url: string) => void;
+type BrokerDisconnectCallback = (err: Error) => void;
 
-export {ConsumeMessage, ChannelWrapper, Channel, ConfirmChannel, ConnectCallback, AmqpConnectionManagerOptions};
+export {
+  ConsumeMessage,
+  ChannelWrapper,
+  Channel,
+  ConfirmChannel,
+  ConnectCallback,
+  BrokerConnectCallback,
+  BrokerDisconnectCallback,
+  AmqpConnectionManagerOptions,
+};
 
 const DEFAULT_MAX_FILES_SIZE_BYTES = 1024 * 1024 * 2; // 2 MB
 const DEFAULT_MAX_BUFFER_TIME_MS = 60 * 1000; // 60 seconds
@@ -27,8 +44,7 @@ export interface ConsumeBatchMessages {
 }
 
 // Used for registerConsumer function
-export interface ConsumerOptions extends Options.Consume {
-}
+export interface ConsumerOptions extends Options.Consume {}
 
 // Used for registerConsumerBatch function
 export interface ConsumerBatchOptions extends Options.Consume {
@@ -50,8 +66,8 @@ export interface IAmqpCacoonConfig {
     logger?: Logger;
   };
   onChannelConnect?: ConnectCallback;
-  onBrokerConnect?: () => void;
-  onBrokerDisconnect?: () => void;
+  onBrokerConnect?: BrokerConnectCallback;
+  onBrokerDisconnect?: BrokerDisconnectCallback;
   // maxWaitForDrainMs?: number; // How long to wait for a drain event if RabbitMq fills up. Zero to wait forever. Defaults to 60000 ms (1 min)
 }
 
@@ -87,7 +103,8 @@ class AmqpCacoon {
   constructor(config: IAmqpCacoonConfig) {
     this.pubChannelWrapper = null;
     this.subChannelWrapper = null;
-    this.fullHostName = config.connectionString || AmqpCacoon.getFullHostName(config);
+    this.fullHostName =
+      config.connectionString || AmqpCacoon.getFullHostName(config);
     this.amqp_opts = config.amqp_opts;
     this.logger = config.providers.logger;
     // this.maxWaitForDrainMs = config.maxWaitForDrainMs || 60000; // Default to 1 min
@@ -119,13 +136,8 @@ class AmqpCacoon {
 
   private injectConnectionEvents(connection: AmqpConnectionManager) {
     // Subscribe to onConnect / onDisconnection functions for debugging
-    connection.on('connect', () => {
-      this.handleBrokerConnect();
-    });
-
-    connection.on('disconnect', () => {
-      this.handleBrokerDisonnect();
-    });
+    connection.on('connect', this.handleBrokerConnect.bind(this));
+    connection.on('disconnect', this.handleBrokerDisconnect.bind(this));
   }
 
   /**
@@ -150,8 +162,7 @@ class AmqpCacoon {
       // Open a channel (get reference to ChannelWrapper)
       // Add a setup function that will be called on each connection retry
       // This function is specified in the config
-      this
-        .pubChannelWrapper = this.connection.createChannel({
+      this.pubChannelWrapper = this.connection.createChannel({
         setup: (channel: ConfirmChannel) => {
           if (this.onChannelConnect) {
             return this.onChannelConnect(channel);
@@ -160,12 +171,11 @@ class AmqpCacoon {
           }
         },
       });
-    } catch
-      (e) {
+    } catch (e) {
       if (this.logger) this.logger.error('AMQPCacoon.connect: Error: ', e);
       throw e;
     }
-// Return the channel
+    // Return the channel
     return this.pubChannelWrapper;
   }
 
@@ -307,7 +317,7 @@ class AmqpCacoon {
     // Initialize Message batching manager
     let messageBatchingHandler: MessageBatchingManager;
     messageBatchingHandler = new MessageBatchingManager({
-      providers: {logger: this.logger},
+      providers: { logger: this.logger },
       maxSizeBytes: options?.batching?.maxSizeBytes,
       maxTimeMs: options?.batching?.maxTimeMs,
       skipNackOnFail: options?.noAck,
@@ -349,14 +359,8 @@ class AmqpCacoon {
       // There's currently a reported bug in node-amqp-connection-manager saying the lib does
       // not handle drain events properly... requires research.
       // See https://github.com/valtech-sd/amqp-cacoon/issues/20
-      await channel.publish(
-        exchange,
-        routingKey,
-        msgBuffer,
-        options
-      );
+      await channel.publish(exchange, routingKey, msgBuffer, options);
       return;
-
     } catch (e) {
       if (this.logger) this.logger.error('AMQPCacoon.publish: Error: ', e);
       throw e;
@@ -364,7 +368,6 @@ class AmqpCacoon {
   }
 
   async close() {
-
     try {
       await this.closePublishChannel();
       await this.closeConsumerChannel();
@@ -406,9 +409,9 @@ class AmqpCacoon {
    *
    * @return void
    **/
-  private handleBrokerConnect() {
+  private handleBrokerConnect(connection: Connection, url: string) {
     if (this.onBrokerConnect) {
-      this.onBrokerConnect();
+      this.onBrokerConnect(connection, url);
     }
   }
 
@@ -418,9 +421,9 @@ class AmqpCacoon {
    *
    * @return void
    **/
-  private handleBrokerDisonnect() {
+  private handleBrokerDisconnect(err: Error) {
     if (this.onBrokerDisconnect) {
-      this.onBrokerDisconnect();
+      this.onBrokerDisconnect(err);
     }
   }
 }
