@@ -314,3 +314,4 @@ AMQPLIP and NODE AMQP MANAGER libraries. For a more "real world" test, see [Run 
 - PENDING: Timeout if drain event does not occur after some amount of time when channel is not ready to receive a 
   publish. As of 09/2020, the publish-on-drain functionality has been removed, as `node-amqp-manager` does not support 
   it at this time (pending a bugfix?). This requires further research and testing. See https://github.com/valtech-sd/amqp-cacoon/issues/20.
+  
