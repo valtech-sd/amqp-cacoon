@@ -16,7 +16,7 @@
     "test": "rimraf ./build && tsc && mocha --exit -r ts-node/register ./tests/**/*.test.ts"
   },
   "dependencies": {
-    "amqp-connection-manager": "^3.2.3",
+    "amqp-connection-manager": "~3.3.0",
     "amqplib": "^0.8.0",
     "lodash": "^4.17.21",
     "log4js": "^6.3.0"

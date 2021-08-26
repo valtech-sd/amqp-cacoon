@@ -54,7 +54,7 @@ let amqpCacoon = new AmqpCacoon({
   },
   onBrokerDisconnect: async (err) => {
     // This is an example "Disconnect" event fired off by AMQP Connection Manager
-    logger.error(`Broker disconnected with error "${err.message}"`);
+    logger.error(`Broker disconnected with error "${err.err.message}"`);
   },
   // Important - onChannelConnect will ensure a certain configuration exists in RMQ.
   // This might not be needed in environments where RMQ is setup by some other process!
