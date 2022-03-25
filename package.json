@@ -19,7 +19,7 @@
     "amqp-connection-manager": "~3.5.0",
     "amqplib": "^0.8.0",
     "lodash": "^4.17.21",
-    "log4js": "^6.3.0"
+    "log4js": "^6.4.4"
   },
   "license": "MIT",
   "devDependencies": {
@@ -32,7 +32,7 @@
     "@types/simple-mock": "^0.8.2",
     "@types/sinon": "^10.0.2",
     "chai": "^4.3.4",
-    "mocha": "^9.1.0",
+    "mocha": "^9.2.2",
     "nodemon": "^2.0.12",
     "rimraf": "^3.0.2",
     "simple-mock": "^0.8.0",
