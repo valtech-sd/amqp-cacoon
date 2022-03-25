@@ -86,6 +86,28 @@ describe('Amqp Cacoon', () => {
     ).to.equal(amqpCacoonConfig.amqp_opts);
   });
 
+  it('Constructor: Connection string without vhost is correct', () => {
+    let amqpCacoon = new AmqpCacoon({
+      ...amqpCacoonConfig,
+    });
+    expect(
+      amqpCacoon.fullHostName,
+      'fullHostName was not set property in the underlying library!'
+    ).to.equal(fullHostName);
+  });
+
+  it('Constructor: Connection string with vhost is correct', () => {
+    const vhost = 'testvhost';
+    let amqpCacoon = new AmqpCacoon({
+      ...amqpCacoonConfig,
+      ...{ vhost },
+    });
+    expect(
+      amqpCacoon.fullHostName,
+      'fullHostName was not set property in the underlying library!'
+    ).to.equal(fullHostName + `/${vhost}`);
+  });
+
   it('getConsumerChannel() - returns a channelWrapper', async () => {
     let amqpCacoon: any;
     try {
