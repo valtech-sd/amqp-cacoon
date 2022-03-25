@@ -58,6 +58,8 @@ const config = {
     port: 5672,
     // Queue setup
     testQueue: 'test-queue',
+    // Optional Virtual Host parameter
+    // vhost: 'VirtualHost',
   },
 };
 

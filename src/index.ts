@@ -60,6 +60,7 @@ export interface IAmqpCacoonConfig {
   password?: string;
   host?: string;
   port?: number;
+  vhost?: string;
   connectionString?: string;
   amqp_opts: object;
   providers: {
@@ -126,11 +127,10 @@ class AmqpCacoon {
       ':' +
       config.password +
       '@' +
-      config.host;
+      config.host +
+      (config.port ? `:${config.port}` : '') +
+      (config.vhost ? `/${config.vhost}` : '');
 
-    if (config.port) {
-      fullHostNameString = fullHostNameString + ':' + config.port;
-    }
     return fullHostNameString;
   }
 
