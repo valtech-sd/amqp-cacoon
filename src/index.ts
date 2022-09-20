@@ -10,7 +10,7 @@ import {
   Options,
   Connection,
 } from 'amqplib';
-import { Logger } from 'log4js';
+import { ILogger } from './types';
 import MessageBatchingManager from './helpers/message_batching_manager';
 
 type ConnectCallback = (channel: ConfirmChannel) => Promise<any>;
@@ -64,7 +64,7 @@ export interface IAmqpCacoonConfig {
   connectionString?: string;
   amqp_opts: object;
   providers: {
-    logger?: Logger;
+    logger?: ILogger;
   };
   onChannelConnect?: ConnectCallback;
   onBrokerConnect?: BrokerConnectCallback;
@@ -87,7 +87,7 @@ class AmqpCacoon {
   private connection?: AmqpConnectionManager;
   private fullHostName: string;
   private amqp_opts: object;
-  private logger?: Logger;
+  private logger?: ILogger;
   // private maxWaitForDrainMs: number;
   private onChannelConnect: ConnectCallback | null;
   private onBrokerConnect: Function | null;

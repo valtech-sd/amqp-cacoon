@@ -1,9 +1,9 @@
 import {ChannelWrapper, ConsumeMessage, ConsumeBatchMessages} from '../index';
-import {Logger} from 'log4js';
+import {ILogger} from '../types';
 
 export interface IMessageBatchingManagerConfig {
   providers: {
-    logger?: Logger;
+    logger?: ILogger;
   };
   maxSizeBytes?: number;
   maxTimeMs?: number;
@@ -15,7 +15,7 @@ export default class MessageBatchingManager {
   private bufferSize: number = 1;
   private timerHandle?: NodeJS.Timeout;
   private amqpChannel?: ChannelWrapper;
-  private logger?: Logger;
+  private logger?: ILogger;
 
   constructor(private config: IMessageBatchingManagerConfig) {
     this.logger = config.providers.logger;
