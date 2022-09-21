@@ -6,12 +6,6 @@
 import { expect } from 'chai';
 import 'mocha';
 import simple from 'simple-mock';
-import log4js from 'log4js';
-
-// Setup our logger
-let logger = log4js.getLogger();
-logger = log4js.getLogger('synchronous');
-logger.level = 'off';
 
 // Import the class we want to test
 import MessageBatchingManager from '../../src/helpers/message_batching_manager';
@@ -61,9 +55,7 @@ describe('Message Batching Manager', () => {
         ca: [],
       },
     },
-    providers: {
-      logger: logger,
-    },
+    providers: { },
     onChannelConnect: async function (channel: ConfirmChannel) {
       if (channel) {
         // Nothing here is needed for now
@@ -82,7 +74,7 @@ describe('Message Batching Manager', () => {
     // Initialize Message batching manager
     let messageBatchingHandler: MessageBatchingManager =
       new MessageBatchingManager({
-        providers: { logger: logger },
+        providers: { },
         maxSizeBytes: 0,
         maxTimeMs: 0,
         skipNackOnFail: true, // not important in this test
@@ -108,7 +100,7 @@ describe('Message Batching Manager', () => {
     // Initialize Message batching manager
     let messageBatchingHandler: MessageBatchingManager =
       new MessageBatchingManager({
-        providers: { logger: logger },
+        providers: { },
         maxSizeBytes: 0,
         maxTimeMs: 0,
         skipNackOnFail: true, // not important in this test
@@ -130,7 +122,7 @@ describe('Message Batching Manager', () => {
     // Initialize Message batching manager
     let messageBatchingHandler: MessageBatchingManager =
       new MessageBatchingManager({
-        providers: { logger: logger },
+        providers: { },
         maxSizeBytes: 0,
         maxTimeMs: 0,
         skipNackOnFail: true, // not important in this test
@@ -171,7 +163,7 @@ describe('Message Batching Manager', () => {
     // Initialize Message batching manager
     let messageBatchingHandler: MessageBatchingManager =
       new MessageBatchingManager({
-        providers: { logger: logger },
+        providers: { },
         maxSizeBytes: 0,
         maxTimeMs: 0,
         skipNackOnFail: true, // not important in this test
@@ -212,7 +204,7 @@ describe('Message Batching Manager', () => {
     // Initialize Message batching manager
     let messageBatchingHandler: MessageBatchingManager =
       new MessageBatchingManager({
-        providers: { logger: logger },
+        providers: { },
         maxSizeBytes: 0,
         maxTimeMs: 0,
         skipNackOnFail: true, // For now, test skip the NACK, so NO NACK on FAIL!
@@ -259,7 +251,7 @@ describe('Message Batching Manager', () => {
     // Initialize Message batching manager
     let messageBatchingHandler: MessageBatchingManager =
       new MessageBatchingManager({
-        providers: { logger: logger },
+        providers: { },
         maxSizeBytes: 0,
         maxTimeMs: 0,
         skipNackOnFail: true, // For now, test skip the NACK, so NO NACK on FAIL!
@@ -324,7 +316,7 @@ describe('Message Batching Manager', () => {
     // Initialize Message batching manager
     let messageBatchingHandler: MessageBatchingManager =
       new MessageBatchingManager({
-        providers: { logger: logger },
+        providers: { },
         maxSizeBytes: 500, // Buffer 500 bytes
         maxTimeMs: 60000, // Buffer 2000 ms - something long for now since we're testing for BYTES!!
         skipNackOnFail: true, // For now, test skip the NACK, so NO NACK on FAIL!
@@ -422,7 +414,7 @@ describe('Message Batching Manager', () => {
     let timeToWaitMs = 750; // Fast so it sends quickly, but still gives us time to check things
     let messageBatchingHandler: MessageBatchingManager =
       new MessageBatchingManager({
-        providers: { logger: logger },
+        providers: { },
         maxSizeBytes: 10000, // Something high so that the bytes don't trigger the send
         maxTimeMs: timeToWaitMs,
         skipNackOnFail: true, // For now, test skip the NACK, so NO NACK on FAIL!

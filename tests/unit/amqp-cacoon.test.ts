@@ -33,12 +33,7 @@ const config: any = {
   },
 };
 
-import log4js from 'log4js';
 import { ConsumerOptions } from '../../build';
-
-let logger = log4js.getLogger();
-logger = log4js.getLogger('synchronous');
-logger.level = 'off';
 
 describe('Amqp Cacoon', () => {
   let amqpCacoonConfig: IAmqpCacoonConfig = {
@@ -57,9 +52,7 @@ describe('Amqp Cacoon', () => {
         ca: [],
       },
     },
-    providers: {
-      logger: logger,
-    },
+    providers: { },
     onChannelConnect: async function (channel: ConfirmChannel) {
       if (channel) {
         await channel.assertQueue(config.messageBus.testQueue);
