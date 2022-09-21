@@ -274,6 +274,32 @@ Note that in both examples:
 1. You then use that channel to perform `assertQueue()`, `assertExhange()`, `bindQueue()` and other setup
    operations.
 
+## Logger
+You can pass a logger (optional) as the examples above. For a logger to work, it should have at least the following methods:
+
+- debug
+- error
+- fatal
+- info
+- trace
+
+Some loggers you may use:
+- [log4js](https://www.npmjs.com/package/log4js)
+- [tslog](https://www.npmjs.com/package/tslog)
+- [bunyan](https://www.npmjs.com/package/bunyan)
+
+The examples in the directory **./examples/src** use **log4js**. 
+And for a typescript project, using **tslog** is quite straightforward:  
+
+```typescript
+const logger = new Logger({
+	displayLoggerName: true,
+	minLevel: 'silly',
+	name: 'amqp-cacoon logger',
+	type: 'pretty'
+});
+```
+
 ## Run the Examples
 
 The directory **./examples/src** contains several examples demonstrating the features of AMQP Cacoon.
