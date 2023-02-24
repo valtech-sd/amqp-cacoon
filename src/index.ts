@@ -62,7 +62,7 @@ export interface IAmqpCacoonConfig {
   port?: number;
   vhost?: string;
   connectionString?: string;
-  amqp_opts: object;
+  amqp_opts: AmqpConnectionManagerOptions;
   providers: {
     logger?: ILogger;
   };
@@ -86,7 +86,7 @@ class AmqpCacoon {
   private subChannelWrapper: ChannelWrapper | null;
   private connection?: AmqpConnectionManager;
   private fullHostName: string;
-  private amqp_opts: object;
+  private amqp_opts: AmqpConnectionManagerOptions;
   private logger?: ILogger;
   // private maxWaitForDrainMs: number;
   private onChannelConnect: ConnectCallback | null;
